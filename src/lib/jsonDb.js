@@ -1,3 +1,4 @@
+import apiClient from '../services/api';
 
 class JsonDatabase {
   constructor() {
@@ -7,115 +8,195 @@ class JsonDatabase {
 
   async loadData() {
     try {
-      const response = await fetch('/src/data/database.json');
-      this.data = await response.json();
+      // Try to load from backend API first
+      const response = await apiClient.get('/admin/data');
+      this.data = response.data;
+      console.log('Database loaded from backend API');
     } catch (error) {
-      console.error('Failed to load database:', error);
-      // Fallback data
-      this.data = {
-        users: [
-          {
-            id: "1",
-            username: "admin",
-            password: "admin123",
-            email: "admin@neenusnatural.com",
-            role: "admin",
-            name: "Administrator",
-            phone: "+91 80 4567 8901",
-            memberSince: "2024-01-01",
-            isActive: true
-          }
-        ],
-        products: [],
-        orders: [],
-        categories: []
-      };
+      console.error('Failed to load database from API:', error);
+      
+      // Try to load from localStorage as fallback
+      const stored = localStorage.getItem('neenu_natural_db');
+      if (stored) {
+        this.data = JSON.parse(stored);
+        console.log('Database loaded from localStorage');
+      } else {
+        // Initialize with minimal structure if nothing is available
+        this.data = {
+          users: [],
+          products: [],
+          orders: [],
+          categories: []
+        };
+        console.log('Database initialized with empty structure');
+      }
     }
   }
 
   // User authentication
   async authenticateUser(username, password) {
-    await this.loadData();
-    const user = this.data.users.find(u => 
-      u.username === username && u.password === password && u.isActive
-    );
-    return user || null;
+    try {
+      // Use backend API for authentication
+      const response = await apiClient.post('/auth/login', { username, password });
+      return response.data;
+    } catch (error) {
+      console.error('Authentication failed:', error);
+      
+      // Fallback to local data if API fails
+      await this.loadData();
+      const user = this.data.users.find(u => 
+        u.username === username && u.password === password && u.isActive
+      );
+      return user || null;
+    }
   }
 
   // Get user by ID
   async getUserById(id) {
-    await this.loadData();
-    return this.data.users.find(u => u.id === id) || null;
+    try {
+      const response = await apiClient.get(`/users/${id}`);
+      return response.data;
+    } catch (error) {
+      console.error('Error fetching user from API:', error);
+      
+      // Fallback to local data
+      await this.loadData();
+      return this.data.users.find(u => u.id === id) || null;
+    }
   }
 
   // Products CRUD
   async getProducts() {
-    await this.loadData();
-    return this.data.products;
+    try {
+      const response = await apiClient.get('/admin/products');
+      return response.data;
+    } catch (error) {
+      console.error('Error fetching products from API:', error);
+      
+      // Fallback to local data
+      await this.loadData();
+      return this.data.products;
+    }
   }
 
   async getProductById(id) {
-    await this.loadData();
-    return this.data.products.find(p => p.id === id) || null;
+    try {
+      const response = await apiClient.get(`/products/${id}`);
+      return response.data;
+    } catch (error) {
+      console.error('Error fetching product from API:', error);
+      
+      // Fallback to local data
+      await this.loadData();
+      return this.data.products.find(p => p.id === id) || null;
+    }
   }
 
   async addProduct(product) {
-    await this.loadData();
-    const newProduct = {
-      ...product,
-      id: (this.data.products.length + 1).toString(),
-      createdAt: new Date().toISOString()
-    };
-    this.data.products.push(newProduct);
-    this.saveData();
-    return newProduct;
+    try {
+      const response = await apiClient.post('/admin/products', product);
+      return response.data;
+    } catch (error) {
+      console.error('Error adding product via API:', error);
+      
+      // Fallback to local storage
+      await this.loadData();
+      const newProduct = {
+        ...product,
+        id: (this.data.products.length + 1).toString(),
+        createdAt: new Date().toISOString()
+      };
+      this.data.products.push(newProduct);
+      this.saveData();
+      return newProduct;
+    }
   }
 
   async updateProduct(id, updates) {
-    await this.loadData();
-    const index = this.data.products.findIndex(p => p.id === id);
-    if (index !== -1) {
-      this.data.products[index] = { ...this.data.products[index], ...updates };
-      this.saveData();
-      return this.data.products[index];
+    try {
+      const response = await apiClient.put(`/admin/products/${id}`, updates);
+      return response.data;
+    } catch (error) {
+      console.error('Error updating product via API:', error);
+      
+      // Fallback to local storage
+      await this.loadData();
+      const index = this.data.products.findIndex(p => p.id === id);
+      if (index !== -1) {
+        this.data.products[index] = { ...this.data.products[index], ...updates };
+        this.saveData();
+        return this.data.products[index];
+      }
+      return null;
     }
-    return null;
   }
 
   async deleteProduct(id) {
-    await this.loadData();
-    const index = this.data.products.findIndex(p => p.id === id);
-    if (index !== -1) {
-      this.data.products.splice(index, 1);
-      this.saveData();
+    try {
+      await apiClient.delete(`/admin/products/${id}`);
       return true;
+    } catch (error) {
+      console.error('Error deleting product via API:', error);
+      
+      // Fallback to local storage
+      await this.loadData();
+      const index = this.data.products.findIndex(p => p.id === id);
+      if (index !== -1) {
+        this.data.products.splice(index, 1);
+        this.saveData();
+        return true;
+      }
+      return false;
     }
-    return false;
   }
 
   // Orders CRUD
   async getOrders() {
-    await this.loadData();
-    return this.data.orders;
+    try {
+      const response = await apiClient.get('/admin/orders');
+      return response.data;
+    } catch (error) {
+      console.error('Error fetching orders from API:', error);
+      
+      // Fallback to local data
+      await this.loadData();
+      return this.data.orders;
+    }
   }
 
   async addOrder(order) {
-    await this.loadData();
-    const newOrder = {
-      ...order,
-      id: (this.data.orders.length + 1).toString(),
-      createdAt: new Date().toISOString(),
-      status: 'pending'
-    };
-    this.data.orders.push(newOrder);
-    this.saveData();
-    return newOrder;
+    try {
+      const response = await apiClient.post('/orders', order);
+      return response.data;
+    } catch (error) {
+      console.error('Error adding order via API:', error);
+      
+      // Fallback to local storage
+      await this.loadData();
+      const newOrder = {
+        ...order,
+        id: (this.data.orders.length + 1).toString(),
+        createdAt: new Date().toISOString(),
+        status: 'pending'
+      };
+      this.data.orders.push(newOrder);
+      this.saveData();
+      return newOrder;
+    }
   }
 
   // Categories
   async getCategories() {
-    await this.loadData();
-    return this.data.categories;
+    try {
+      const response = await apiClient.get('/categories');
+      return response.data;
+    } catch (error) {
+      console.error('Error fetching categories from API:', error);
+      
+      // Fallback to local data
+      await this.loadData();
+      return this.data.categories;
+    }
   }
 
   // Save data (in a real app, this would save to server)

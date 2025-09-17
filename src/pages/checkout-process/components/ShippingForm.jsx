@@ -1,13 +1,31 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import Input from '../../../components/ui/Input';
 import Select from '../../../components/ui/Select';
 import Button from '../../../components/ui/Button';
 import { Checkbox } from '../../../components/ui/Checkbox';
+import { useAuth } from '../../../contexts/AuthContext';
+import userApi from '../../../services/userApi';
 
-
-const ShippingForm = ({ onNext, savedAddresses = [], onAddressSelect }) => {
+/**
+ * ShippingForm Component - Step 1 of Checkout Process
+ * 
+ * This component handles address selection for delivery:
+ * 1. Shows saved addresses if available
+ * 2. Allows adding new address
+ * 3. Validates address information
+ * 4. Saves selection to backend before proceeding
+ * 
+ * Props:
+ * - onNext: Function to proceed to next step
+ * - onAddressSelect: Function to handle address selection
+ * - user: Current user object
+ * - isLoading: Loading state for form submission
+ */
+const ShippingForm = ({ onNext, onAddressSelect, user, isLoading = false }) => {
+  const { user: authUser } = useAuth();
   const [selectedAddress, setSelectedAddress] = useState('');
   const [showNewAddressForm, setShowNewAddressForm] = useState(false);
+  const [saved, setSaved] = useState([]);
   const [formData, setFormData] = useState({
     firstName: '',
     lastName: '',
@@ -34,28 +52,27 @@ const ShippingForm = ({ onNext, savedAddresses = [], onAddressSelect }) => {
     { value: 'uttar-pradesh', label: 'Uttar Pradesh' }
   ];
 
-  const mockSavedAddresses = [
-    {
-      id: 1,
-      name: 'Home',
-      fullName: 'Priya Sharma',
-      address: '123 MG Road, Koramangala',
-      city: 'Bengaluru',
-      state: 'Karnataka',
-      pincode: '560034',
-      phone: '+91 98765 43210'
-    },
-    {
-      id: 2,
-      name: 'Office',
-      fullName: 'Priya Sharma',
-      address: '456 Brigade Road, Commercial Street',
-      city: 'Bengaluru',
-      state: 'Karnataka',
-      pincode: '560025',
-      phone: '+91 98765 43210'
-    }
-  ];
+  // Load saved addresses from backend
+  useEffect(() => {
+    const load = async () => {
+      try {
+        if (!authUser?.email) return;
+        const list = await userApi.getAddresses(authUser.email);
+        const addressList = Array.isArray(list) ? list : [];
+        setSaved(addressList);
+        
+        // If no saved addresses, automatically show new address form
+        if (addressList.length === 0) {
+          setShowNewAddressForm(true);
+        }
+      } catch (e) {
+        setSaved([]);
+        // If error loading addresses, show new address form
+        setShowNewAddressForm(true);
+      }
+    };
+    load();
+  }, [authUser?.email]);
 
   const handleInputChange = (e) => {
     const { name, value } = e?.target;
@@ -63,6 +80,23 @@ const ShippingForm = ({ onNext, savedAddresses = [], onAddressSelect }) => {
     if (errors?.[name]) {
       setErrors(prev => ({ ...prev, [name]: '' }));
     }
+  };
+
+  /**
+   * Check if form is valid without setting errors (for button state)
+   */
+  const isFormValid = () => {
+    return formData?.firstName?.trim() &&
+           formData?.lastName?.trim() &&
+           formData?.email?.trim() &&
+           /\S+@\S+\.\S+/?.test(formData?.email) &&
+           formData?.phone?.trim() &&
+           /^[+]?[91]?[6-9]\d{9}$/?.test(formData?.phone?.replace(/\s/g, '')) &&
+           formData?.address?.trim() &&
+           formData?.city?.trim() &&
+           formData?.state &&
+           formData?.pincode?.trim() &&
+           /^\d{6}$/?.test(formData?.pincode);
   };
 
   const validateForm = () => {
@@ -86,10 +120,71 @@ const ShippingForm = ({ onNext, savedAddresses = [], onAddressSelect }) => {
     return Object.keys(newErrors)?.length === 0;
   };
 
-  const handleSubmit = (e) => {
+  /**
+   * Handle form submission
+   * Validates form data and proceeds to next step
+   */
+  const handleSubmit = async (e) => {
     e?.preventDefault();
-    if (selectedAddress || (showNewAddressForm && validateForm())) {
-      onNext(selectedAddress || formData);
+    
+    try {
+      if (selectedAddress) {
+        // Use selected saved address
+        const address = saved?.find(a => String(a?.id) === String(selectedAddress));
+        if (!address) {
+          throw new Error('Selected address not found');
+        }
+        
+        if (onAddressSelect) onAddressSelect(address);
+        onNext(address);
+        return;
+      }
+      
+      if (showNewAddressForm && validateForm()) {
+        // Create new address
+        let created = null;
+        
+        // Save to backend if requested
+        if (saveAddress && authUser?.email) {
+          try {
+            const payload = {
+              name: `${formData.firstName} ${formData.lastName}`.trim(),
+              phone: formData.phone,
+              street: formData.address + (formData.apartment ? `, ${formData.apartment}` : ''),
+              city: formData.city,
+              state: typeof formData.state === 'string' ? formData.state : formData.state?.value,
+              pincode: formData.pincode,
+              landmark: '',
+              addressType: 'Home',
+              default: saved?.length === 0
+            };
+            created = await userApi.addAddress(authUser.email, payload);
+            setSaved(prev => [...prev, created]);
+            console.log('New address saved to backend:', created);
+          } catch (error) {
+            console.error('Failed to save address to backend:', error);
+            // Continue with local address creation
+          }
+        }
+        
+        // Create address object for checkout
+        const addressToUse = created || {
+          name: `${formData.firstName} ${formData.lastName}`.trim(),
+          phone: formData.phone,
+          street: formData.address + (formData.apartment ? `, ${formData.apartment}` : ''),
+          city: formData.city,
+          state: typeof formData.state === 'string' ? formData.state : formData.state?.value,
+          pincode: formData.pincode,
+          landmark: '',
+          addressType: 'Home'
+        };
+        
+        if (onAddressSelect) onAddressSelect(addressToUse);
+        onNext(addressToUse);
+      }
+    } catch (error) {
+      console.error('Error in address submission:', error);
+      setErrors({ submit: error.message || 'Failed to process address selection' });
     }
   };
 
@@ -97,7 +192,7 @@ const ShippingForm = ({ onNext, savedAddresses = [], onAddressSelect }) => {
     setSelectedAddress(addressId);
     setShowNewAddressForm(false);
     if (onAddressSelect) {
-      const address = mockSavedAddresses?.find(addr => addr?.id === parseInt(addressId));
+      const address = saved?.find(addr => String(addr?.id) === String(addressId));
       onAddressSelect(address);
     }
   };
@@ -109,13 +204,13 @@ const ShippingForm = ({ onNext, savedAddresses = [], onAddressSelect }) => {
       </h2>
       <form onSubmit={handleSubmit} className="space-y-6">
         {/* Saved Addresses */}
-        {mockSavedAddresses?.length > 0 && (
+        {saved?.length > 0 && (
           <div className="space-y-4">
             <h3 className="font-body font-medium text-foreground">
               Choose from saved addresses
             </h3>
             <div className="space-y-3">
-              {mockSavedAddresses?.map((address) => (
+              {saved?.map((address) => (
                 <label
                   key={address?.id}
                   className={`block p-4 border rounded-lg cursor-pointer transition-colors duration-200 ${
@@ -135,14 +230,14 @@ const ShippingForm = ({ onNext, savedAddresses = [], onAddressSelect }) => {
                     <div className="flex-1">
                       <div className="flex items-center space-x-2 mb-2">
                         <span className="font-body font-medium text-foreground">
-                          {address?.name}
+                          {address?.addressType}
                         </span>
-                        <span className="bg-muted text-muted-foreground px-2 py-1 rounded text-xs font-caption">
-                          {address?.fullName}
-                        </span>
+                        {address?.isDefault && (
+                          <span className="bg-primary/10 text-primary px-2 py-1 rounded text-xs font-caption">Default</span>
+                        )}
                       </div>
                       <p className="font-body text-sm text-muted-foreground">
-                        {address?.address}
+                        {address?.street}
                       </p>
                       <p className="font-body text-sm text-muted-foreground">
                         {address?.city}, {address?.state} - {address?.pincode}
@@ -181,9 +276,9 @@ const ShippingForm = ({ onNext, savedAddresses = [], onAddressSelect }) => {
         )}
 
         {/* New Address Form */}
-        {(showNewAddressForm || mockSavedAddresses?.length === 0) && (
+        {(showNewAddressForm || saved?.length === 0) && (
           <div className="space-y-4">
-            {mockSavedAddresses?.length > 0 && (
+            {saved?.length > 0 && (
               <div className="flex items-center justify-between">
                 <h3 className="font-body font-medium text-foreground">
                   Add New Address
@@ -308,17 +403,33 @@ const ShippingForm = ({ onNext, savedAddresses = [], onAddressSelect }) => {
           </div>
         )}
 
+        {/* Error Display */}
+        {errors?.submit && (
+          <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+            <p className="text-red-600 text-sm">{errors.submit}</p>
+          </div>
+        )}
+
         <div className="flex justify-end pt-4">
           <Button
             type="submit"
             variant="default"
             iconName="ArrowRight"
             iconPosition="right"
-            disabled={!selectedAddress && !showNewAddressForm}
+            disabled={isLoading || (!selectedAddress && !showNewAddressForm) || (showNewAddressForm && !isFormValid())}
+            loading={isLoading}
           >
-            Continue to Delivery
+            {isLoading ? 'Processing...' : 'Continue to Delivery'}
           </Button>
         </div>
+        
+        {/* Debug info - remove in production */}
+        {process.env.NODE_ENV === 'development' && (
+          <div className="mt-4 p-2 bg-gray-100 text-xs text-gray-600 rounded">
+            <p>Debug: selectedAddress={selectedAddress ? 'Yes' : 'No'}, showNewAddressForm={showNewAddressForm ? 'Yes' : 'No'}, isFormValid={isFormValid() ? 'Yes' : 'No'}</p>
+            <p>Button disabled: {isLoading || (!selectedAddress && !showNewAddressForm) || (showNewAddressForm && !isFormValid()) ? 'Yes' : 'No'}</p>
+          </div>
+        )}
       </form>
     </div>
   );

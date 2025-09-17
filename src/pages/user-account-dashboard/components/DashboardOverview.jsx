@@ -37,18 +37,18 @@ const DashboardOverview = ({ user, recentOrders, loyaltyPoints }) => {
       icon: 'Package',
       color: 'text-primary'
     },
-    {
-      label: 'Total Spent',
-      value: `₹${user?.totalSpent || 0}`,
-      icon: 'CreditCard',
-      color: 'text-primary'
-    },
-    {
-      label: 'Total Saved',
-      value: `₹${user?.totalSaved || 0}`,
-      icon: 'Wallet',
-      color: 'text-success'
-    },
+    // {
+    //   label: 'Total Spent',
+    //   value: `₹${user?.totalSpent || 0}`,
+    //   icon: 'CreditCard',
+    //   color: 'text-primary'
+    // },
+    // {
+    //   label: 'Total Saved',
+    //   value: `₹${user?.totalSaved || 0}`,
+    //   icon: 'Wallet',
+    //   color: 'text-success'
+    // },
     {
       label: 'Cart Items',
       value: user?.cartItemCount || 0,
@@ -97,7 +97,7 @@ const DashboardOverview = ({ user, recentOrders, loyaltyPoints }) => {
         ))}
       </div>
       {/* Quick Actions */}
-      <div>
+      {/* <div>
         <h2 className="font-heading text-lg font-semibold text-foreground mb-4">
           Quick Actions
         </h2>
@@ -121,17 +121,17 @@ const DashboardOverview = ({ user, recentOrders, loyaltyPoints }) => {
             </button>
           ))}
         </div>
-      </div>
+      </div> */}
       {/* Recent Orders */}
       <div>
-        <div className="flex items-center justify-between mb-4">
+        {/* <div className="flex items-center justify-between mb-4">
           <h2 className="font-heading text-lg font-semibold text-foreground">
             Recent Orders
           </h2>
           <Button variant="outline" size="sm">
             View All Orders
           </Button>
-        </div>
+        </div> */}
         <div className="space-y-3">
           {recentOrders?.slice(0, 3)?.map((order) => (
             <div key={order?.id} className="bg-card border border-border rounded-lg p-4">

@@ -28,7 +28,11 @@ const ShoppingCart = () => {
   const [shippingLocation, setShippingLocation] = useState('');
 
   // Calculate totals
-  const subtotal = cartItems?.reduce((sum, item) => sum + (item?.price * item?.quantity), 0);
+  const subtotal = cartItems?.reduce((sum, item) => {
+    const price = parseFloat(item?.price) || 0;
+    const quantity = parseInt(item?.quantity) || 0;
+    return sum + (price * quantity);
+  }, 0);
   const discount = appliedCoupon ? appliedCoupon?.discount : 0;
   const discountedSubtotal = subtotal - discount;
   

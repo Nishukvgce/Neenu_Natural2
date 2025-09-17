@@ -34,7 +34,7 @@ const Header = ({ isLoggedIn = false, onSearch = () => {} }) => {
 
   const navigationItems = [
     {
-      label: 'Shop',
+      label: '',
       path: '/product-collection-grid',
       hasDropdown: true,
       onClick: () => setIsMegaMenuOpen(!isMegaMenuOpen)
@@ -163,13 +163,13 @@ const Header = ({ isLoggedIn = false, onSearch = () => {} }) => {
         <div className="container mx-auto px-4">
           <div className="flex items-center">
             {/* Shop by Category Button */}
-            <button
+            {/* <button
               onClick={() => setIsMegaMenuOpen(!isMegaMenuOpen)}
               className="flex items-center space-x-2 px-4 py-3 bg-accent-foreground/10 hover:bg-accent-foreground/20 transition-colors duration-200"
             >
               <Icon name="Menu" size={16} />
               <span className="font-body font-medium">SHOP BY CATEGORY</span>
-            </button>
+            </button> */}
 
             {/* Navigation Items */}
             <nav className="hidden lg:flex items-center ml-8 space-x-6">

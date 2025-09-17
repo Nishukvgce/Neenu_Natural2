@@ -1,112 +1,126 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import Image from '../../../components/AppImage';
 import Icon from '../../../components/AppIcon';
+import categoryApi from '../../../services/categoryApi';
+import productApi from '../../../services/productApi';
 
 const CategoryTiles = () => {
-  const categories = [
-    {
-      id: 1,
-      name: "Unpolished Pulses, Dals & Rice",
-      description: "Chemical-free rice varieties and authentic pulses",
-      image: "https://images.unsplash.com/photo-1586201375761-83865001e31c?w=400&h=300&fit=crop",
-      link: "/product-collection-grid?category=unpolished-pulses-dals-rice",
-      productCount: "15+ Products",
-      featured: true
-    },
-    {
-      id: 2,
-      name: "Poha / Aval",
-      description: "Traditional flattened rice varieties",
-      image: "https://images.unsplash.com/photo-1596040033229-a9821ebd058d?w=400&h=300&fit=crop",
-      link: "/product-collection-grid?category=poha-aval",
-      productCount: "3+ Products"
-    },
-    {
-      id: 3,
-      name: "Sugars & Honey",
-      description: "Natural sweeteners and organic honey",
-      image: "https://images.unsplash.com/photo-1587049352846-4a222e784d38?w=400&h=300&fit=crop",
-      link: "/product-collection-grid?category=sugars-honey",
-      productCount: "6+ Products"
-    },
-    {
-      id: 4,
-      name: "Haircare Products",
-      description: "Natural hair care solutions and oils",
-      image: "https://images.unsplash.com/photo-1522335789203-aabd1fc54bc9?w=400&h=300&fit=crop",
-      link: "/product-collection-grid?category=haircare-products",
-      productCount: "12+ Products",
-      badge: "Natural"
-    },
-    {
-      id: 5,
-      name: "Skincare Products",
-      description: "Herbal skincare and beauty products",
-      image: "https://images.unsplash.com/photo-1596755389378-c31d21fd1273?w=400&h=300&fit=crop",
-      link: "/product-collection-grid?category=skincare-products",
-      productCount: "8+ Products"
-    },
-    {
-      id: 6,
-      name: "Millet Items",
-      description: "Nutritious millet-based food products",
-      image: "https://images.unsplash.com/photo-1574323347407-f5e1ad6d020b?w=400&h=300&fit=crop",
-      link: "/product-collection-grid?category=millet-items",
-      productCount: "10+ Products",
-      badge: "Healthy"
-    },
-    {
-      id: 7,
-      name: "Powders",
-      description: "Freshly ground spice powders and mixes",
-      image: "https://images.unsplash.com/photo-1596040033229-a9821ebd058d?w=400&h=300&fit=crop",
-      link: "/product-collection-grid?category=powders",
-      productCount: "10+ Products"
-    },
-    {
-      id: 8,
-      name: "Fries",
-      description: "Traditional dried and fried delicacies",
-      image: "https://images.unsplash.com/photo-1599490659213-e2b9527bd087?w=400&h=300&fit=crop",
-      link: "/product-collection-grid?category=fries",
-      productCount: "7+ Products"
-    },
-    {
-      id: 9,
-      name: "Herbal Handmade Soaps",
-      description: "Natural handcrafted soaps with herbs",
-      image: "https://images.unsplash.com/photo-1556228720-195a672e8a03?w=400&h=300&fit=crop",
-      link: "/product-collection-grid?category=herbal-handmade-soaps",
-      productCount: "20+ Products",
-      featured: true
-    },
-    {
-      id: 10,
-      name: "Snacks",
-      description: "Healthy millet-based snacks and sweets",
-      image: "https://images.unsplash.com/photo-1606313564200-e75d5e30476c?w=400&h=300&fit=crop",
-      link: "/product-collection-grid?category=snacks",
-      productCount: "25+ Products",
-      badge: "Popular"
-    },
-    {
-      id: 11,
-      name: "Herbal Products",
-      description: "Traditional herbal remedies and health products",
-      image: "https://images.unsplash.com/photo-1512290923902-8a9f81dc236c?w=400&h=300&fit=crop",
-      link: "/product-collection-grid?category=herbal-products",
-      productCount: "30+ Products"
-    },
-    {
-      id: 12,
-      name: "Herbal Powders",
-      description: "Natural herbal powders for health and wellness",
-      image: "https://images.unsplash.com/photo-1574323347407-f5e1ad6d020b?w=400&h=300&fit=crop",
-      link: "/product-collection-grid?category=herbal-powders",
-      productCount: "25+ Products"
-    }
-  ];
+  const [categories, setCategories] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  useEffect(() => {
+    const loadCategories = async () => {
+      try {
+        setLoading(true);
+        setError(null);
+        
+        console.log('Fetching categories from backend API...');
+        
+        // Try to get categories from backend API
+        const categoriesRes = await categoryApi.getAll();
+        let categoriesData = categoriesRes?.data || [];
+        
+        if (categoriesData.length === 0) {
+          console.log('No categories from API, generating from products...');
+          // Fallback: Generate categories from products
+          try {
+            const productsRes = await productApi.getAll();
+            const products = Array.isArray(productsRes) ? productsRes : (productsRes?.data || []);
+            
+            // Group products by category
+            const categoryMap = {};
+            products.forEach(product => {
+              const categoryId = product.category || product.categoryId;
+              if (categoryId) {
+                if (!categoryMap[categoryId]) {
+                  categoryMap[categoryId] = {
+                    id: categoryId,
+                    name: categoryId.replace(/-/g, ' ').replace(/\b\w/g, l => l.toUpperCase()),
+                    description: `Quality ${categoryId.replace(/-/g, ' ')} products`,
+                    image: product.imageUrl || product.image || "https://images.unsplash.com/photo-1586201375761-83865001e31c?w=400&h=300&fit=crop",
+                    link: `/product-collection-grid?category=${categoryId}`,
+                    productCount: 0
+                  };
+                }
+                categoryMap[categoryId].productCount++;
+              }
+            });
+            
+            categoriesData = Object.values(categoryMap);
+          } catch (productError) {
+            console.error('Error generating categories from products:', productError);
+            categoriesData = [];
+          }
+        }
+        
+        // Process categories to ensure proper format
+        const processedCategories = categoriesData.map(category => ({
+          id: category.id || category.name?.toLowerCase().replace(/\s+/g, '-'),
+          name: category.name || category.categoryName,
+          description: category.description || `Quality ${category.name} products`,
+          image: category.image || category.imageUrl || "https://images.unsplash.com/photo-1586201375761-83865001e31c?w=400&h=300&fit=crop",
+          link: `/product-collection-grid?category=${category.id || category.name?.toLowerCase().replace(/\s+/g, '-')}`,
+          productCount: category.productCount ? `${category.productCount}+ Products` : "Products Available",
+          featured: category.featured || false,
+        }));
+        
+        setCategories(processedCategories);
+        console.log('Successfully loaded categories:', processedCategories.length);
+        
+      } catch (err) {
+        console.error('Error loading categories:', err);
+        setError('Failed to load categories');
+        setCategories([]);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadCategories();
+  }, []);
+
+  if (loading) {
+    return (
+      <section className="py-16 lg:py-20 bg-background">
+        <div className="container mx-auto px-4">
+          <div className="text-center mb-12">
+            <h2 className="font-heading font-bold text-3xl lg:text-4xl text-foreground mb-4">
+              Shop by Category
+            </h2>
+            <p className="font-body text-lg text-muted-foreground max-w-2xl mx-auto">
+              Loading categories...
+            </p>
+          </div>
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-4 lg:gap-6">
+            {[...Array(6)].map((_, index) => (
+              <div key={index} className="bg-card border border-border rounded-xl overflow-hidden animate-pulse">
+                <div className="aspect-square bg-muted"></div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+    );
+  }
+
+  if (error) {
+    return (
+      <section className="py-16 lg:py-20 bg-background">
+        <div className="container mx-auto px-4">
+          <div className="text-center mb-12">
+            <h2 className="font-heading font-bold text-3xl lg:text-4xl text-foreground mb-4">
+              Shop by Category
+            </h2>
+            <p className="font-body text-lg text-destructive max-w-2xl mx-auto">
+              {error}
+            </p>
+          </div>
+        </div>
+      </section>
+    );
+  }
 
   return (
     <section className="py-16 lg:py-20 bg-background">

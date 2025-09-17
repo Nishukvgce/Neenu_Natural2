@@ -6,6 +6,21 @@ const ProductImageGallery = ({ images, productName }) => {
   const [selectedImageIndex, setSelectedImageIndex] = useState(0);
   const [isZoomed, setIsZoomed] = useState(false);
 
+  // Handle case when no images are available
+  if (!images || images.length === 0) {
+    return (
+      <div className="space-y-4">
+        <div className="relative aspect-square bg-muted rounded-lg overflow-hidden flex items-center justify-center">
+          <div className="text-center">
+            <Icon name="ImageOff" size={48} className="text-muted-foreground mx-auto mb-2" />
+            <p className="text-muted-foreground font-medium">No image found</p>
+            <p className="text-sm text-muted-foreground/70">Image not available for this product</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   const handlePrevious = () => {
     setSelectedImageIndex((prev) => 
       prev === 0 ? images?.length - 1 : prev - 1

@@ -1,5 +1,7 @@
 
 import React, { createContext, useContext, useEffect, useState } from 'react';
+import { useAuth } from './AuthContext';
+import cartApi from '../services/cartApi';
 
 const CartContext = createContext({});
 
@@ -41,36 +43,46 @@ export const CartProvider = ({ children }) => {
     }, 3000);
   };
 
-  // Load cart from localStorage on mount
+  const { user } = useAuth();
+
+  // Load cart from backend for logged-in users; fallback to local for guests
   useEffect(() => {
-    const savedCart = localStorage.getItem('neenu_cart');
-    const savedForLater = localStorage.getItem('neenu_saved_items');
-    const savedWishlist = localStorage.getItem('neenu_wishlist');
-    
-    if (savedCart) {
-      try {
-        setCartItems(JSON.parse(savedCart));
-      } catch (error) {
-        console.error('Error loading cart:', error);
+    const init = async () => {
+      const savedForLater = localStorage.getItem('neenu_saved_items');
+      const savedWishlist = localStorage.getItem('neenu_wishlist');
+      if (savedForLater) {
+        try { setSavedItems(JSON.parse(savedForLater)); } catch {}
       }
-    }
-    
-    if (savedForLater) {
-      try {
-        setSavedItems(JSON.parse(savedForLater));
-      } catch (error) {
-        console.error('Error loading saved items:', error);
+      if (savedWishlist) {
+        try { setWishlistItems(JSON.parse(savedWishlist)); } catch {}
       }
-    }
-    
-    if (savedWishlist) {
-      try {
-        setWishlistItems(JSON.parse(savedWishlist));
-      } catch (error) {
-        console.error('Error loading wishlist:', error);
+      if (user?.email) {
+        try {
+          const serverCart = await cartApi.getCart(user.email);
+          setCartItems(serverCart.map(ci => ({
+            id: ci.productId,
+            name: ci.name,
+            image: ci.imageUrl,
+            price: ci.price,
+            originalPrice: ci.originalPrice || ci.price, // Fallback to price if no originalPrice
+            quantity: ci.quantity,
+            variant: 'Default'
+          })));
+        } catch {
+          const savedCart = localStorage.getItem('neenu_cart');
+          if (savedCart) {
+            try { setCartItems(JSON.parse(savedCart)); } catch {}
+          }
+        }
+      } else {
+        const savedCart = localStorage.getItem('neenu_cart');
+        if (savedCart) {
+          try { setCartItems(JSON.parse(savedCart)); } catch {}
+        }
       }
-    }
-  }, []);
+    };
+    init();
+  }, [user?.email]);
 
   // Save cart to localStorage whenever it changes
   useEffect(() => {
@@ -85,32 +97,87 @@ export const CartProvider = ({ children }) => {
     localStorage.setItem('neenu_wishlist', JSON.stringify(wishlistItems));
   }, [wishlistItems]);
 
-  const addToCart = (product, quantity = 1) => {
+  const addToCart = async (product, quantity = 1) => {
     // Ensure price is a valid number
     const sanitizedProduct = {
       ...product,
       price: parseFloat(product.price) || 0,
-      originalPrice: parseFloat(product.originalPrice) || 0,
+      originalPrice: parseFloat(product.originalPrice) || parseFloat(product.price) || 0,
       quantity: parseInt(quantity) || 1
     };
 
-    setCartItems(prev => {
-      const existingItem = prev.find(item => item.id === sanitizedProduct.id);
-      if (existingItem) {
-        showNotification(`Updated ${sanitizedProduct.name} quantity in cart!`);
-        return prev.map(item =>
-          item.id === sanitizedProduct.id
-            ? { ...item, quantity: (parseInt(item.quantity) || 0) + (parseInt(quantity) || 1) }
-            : item
-        );
-      } else {
-        showNotification(`${sanitizedProduct.name} added to cart!`);
-        return [...prev, sanitizedProduct];
+    if (user?.email) {
+      try {
+        const apiResponse = await cartApi.add(user.email, { productId: sanitizedProduct.productId || sanitizedProduct.id, quantity: sanitizedProduct.quantity });
+        
+        // Update cart with API response data
+        setCartItems(prev => {
+          const existingItem = prev.find(item => item.id === (sanitizedProduct.productId || sanitizedProduct.id));
+          if (existingItem) {
+            showNotification(`Updated ${sanitizedProduct.name} quantity in cart!`);
+            return prev.map(item =>
+              item.id === (sanitizedProduct.productId || sanitizedProduct.id)
+                ? { 
+                    ...item, 
+                    quantity: apiResponse.quantity,
+                    price: apiResponse.price,
+                    originalPrice: apiResponse.originalPrice || apiResponse.price,
+                    image: apiResponse.imageUrl || item.image
+                  }
+                : item
+            );
+          } else {
+            showNotification(`${sanitizedProduct.name} added to cart!`);
+            return [...prev, {
+              id: apiResponse.productId,
+              name: apiResponse.name,
+              image: apiResponse.imageUrl,
+              price: apiResponse.price,
+              originalPrice: apiResponse.originalPrice || apiResponse.price,
+              quantity: apiResponse.quantity,
+              variant: sanitizedProduct.variant || 'Default',
+              category: sanitizedProduct.category,
+              brand: sanitizedProduct.brand
+            }];
+          }
+        });
+      } catch (error) {
+        // Fallback to local cart if API fails
+        setCartItems(prev => {
+          const existingItem = prev.find(item => item.id === sanitizedProduct.id);
+          if (existingItem) {
+            showNotification(`Updated ${sanitizedProduct.name} quantity in cart!`);
+            return prev.map(item =>
+              item.id === sanitizedProduct.id
+                ? { ...item, quantity: (parseInt(item.quantity) || 0) + (parseInt(quantity) || 1) }
+                : item
+            );
+          } else {
+            showNotification(`${sanitizedProduct.name} added to cart!`);
+            return [...prev, sanitizedProduct];
+          }
+        });
       }
-    });
+    } else {
+      // Guest user - use local cart
+      setCartItems(prev => {
+        const existingItem = prev.find(item => item.id === sanitizedProduct.id);
+        if (existingItem) {
+          showNotification(`Updated ${sanitizedProduct.name} quantity in cart!`);
+          return prev.map(item =>
+            item.id === sanitizedProduct.id
+              ? { ...item, quantity: (parseInt(item.quantity) || 0) + (parseInt(quantity) || 1) }
+              : item
+          );
+        } else {
+          showNotification(`${sanitizedProduct.name} added to cart!`);
+          return [...prev, sanitizedProduct];
+        }
+      });
+    }
   };
 
-  const updateQuantity = (itemId, newQuantity) => {
+  const updateQuantity = async (itemId, newQuantity) => {
     if (newQuantity <= 0) {
       removeFromCart(itemId);
       return;
@@ -121,10 +188,16 @@ export const CartProvider = ({ children }) => {
         item.id === itemId ? { ...item, quantity: newQuantity } : item
       )
     );
+    if (user?.email) {
+      try { await cartApi.update(user.email, { productId: itemId, quantity: newQuantity }); } catch {}
+    }
   };
 
-  const removeFromCart = (itemId) => {
+  const removeFromCart = async (itemId) => {
     setCartItems(prev => prev.filter(item => item.id !== itemId));
+    if (user?.email) {
+      try { await cartApi.remove(user.email, { productId: itemId }); } catch {}
+    }
   };
 
   const saveForLater = (itemId) => {

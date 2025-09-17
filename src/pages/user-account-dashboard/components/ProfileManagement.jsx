@@ -3,6 +3,8 @@ import Icon from '../../../components/AppIcon';
 import Button from '../../../components/ui/Button';
 import Input from '../../../components/ui/Input';
 
+import userApi from '../../../services/userApi';
+
 const ProfileManagement = ({ user, onUpdateProfile }) => {
   const [isEditing, setIsEditing] = useState(false);
   const [isChangingPassword, setIsChangingPassword] = useState(false);
@@ -97,16 +99,18 @@ const ProfileManagement = ({ user, onUpdateProfile }) => {
     }
   };
 
-  const handleChangePassword = () => {
-    if (validatePasswordForm()) {
-      // Handle password change
-      console.log('Password change requested');
-      setIsChangingPassword(false);
-      setPasswordData({
-        currentPassword: '',
-        newPassword: '',
-        confirmPassword: ''
+  const handleChangePassword = async () => {
+    if (!validatePasswordForm()) return;
+    try {
+      await userApi.updatePassword(user?.email, {
+        currentPassword: passwordData.currentPassword,
+        newPassword: passwordData.newPassword
       });
+      setIsChangingPassword(false);
+      setPasswordData({ currentPassword: '', newPassword: '', confirmPassword: '' });
+      alert('Password updated successfully');
+    } catch (e) {
+      alert(e?.response?.data?.message || 'Failed to update password');
     }
   };
 
@@ -309,7 +313,7 @@ const ProfileManagement = ({ user, onUpdateProfile }) => {
         )}
       </div>
       {/* Account Statistics */}
-      <div className="bg-card border border-border rounded-lg p-6">
+      {/* <div className="bg-card border border-border rounded-lg p-6">
         <h3 className="font-heading text-lg font-semibold text-foreground mb-4">
           Account Statistics
         </h3>
@@ -347,7 +351,7 @@ const ProfileManagement = ({ user, onUpdateProfile }) => {
             </div>
           </div>
         </div>
-      </div>
+      </div> */}
     </div>
   );
 };

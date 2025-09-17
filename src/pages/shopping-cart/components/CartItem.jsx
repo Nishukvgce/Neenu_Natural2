@@ -12,8 +12,8 @@ const CartItem = ({ item, onUpdateQuantity, onRemoveItem, onSaveForLater }) => {
     }
   };
 
-  const discountAmount = item?.originalPrice - item?.price;
-  const discountPercentage = Math.round((discountAmount / item?.originalPrice) * 100);
+  const discountAmount = (item?.originalPrice && item?.originalPrice > item?.price) ? item?.originalPrice - item?.price : 0;
+  const discountPercentage = discountAmount > 0 ? Math.round((discountAmount / item?.originalPrice) * 100) : 0;
 
   return (
     <div className="bg-card border border-border rounded-lg p-4 shadow-warm">
@@ -77,9 +77,16 @@ const CartItem = ({ item, onUpdateQuantity, onRemoveItem, onSaveForLater }) => {
                   </>
                 )}
               </div>
-              <p className="font-caption text-xs text-muted-foreground">
-                ₹{item?.price?.toFixed(2)} per unit
-              </p>
+              <div className="space-y-1">
+                <p className="font-caption text-xs text-muted-foreground">
+                  ₹{item?.price?.toFixed(2)} per unit
+                </p>
+                {discountAmount > 0 && (
+                  <p className="font-caption text-xs text-success">
+                    You save ₹{(discountAmount * item?.quantity)?.toFixed(2)}
+                  </p>
+                )}
+              </div>
             </div>
 
             {/* Quantity Controls */}

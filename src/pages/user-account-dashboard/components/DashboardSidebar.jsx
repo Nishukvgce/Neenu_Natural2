@@ -35,12 +35,6 @@ const DashboardSidebar = ({ user, onSectionChange, activeSection }) => {
       label: 'Wishlist',
       icon: 'Heart',
       description: 'Saved products'
-    },
-    {
-      id: 'preferences',
-      label: 'Preferences',
-      icon: 'Settings',
-      description: 'Notifications & settings'
     }
   ];
 

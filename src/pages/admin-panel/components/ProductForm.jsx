@@ -1,3 +1,10 @@
+  // Handle image file selection
+  const handleImageUpload = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      setImageFile(file);
+    }
+  };
 import React, { useState, useEffect } from 'react';
 import { X } from 'lucide-react';
 import dataService from '../../../services/dataService';
@@ -12,28 +19,67 @@ const ProductForm = ({ product, onSave, onCancel }) => {
     originalPrice: '',
     category: '',
     subcategory: '',
-    image: '',
     weight: '',
     stockQuantity: '',
     ingredients: '',
     benefits: '',
     inStock: true
   });
+  const [categories, setCategories] = useState([]);
+  const [imageFile, setImageFile] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
   useEffect(() => {
-    if (product) {
+    if (product && typeof product === 'object') {
       setFormData({
-        ...product,
-        price: product.price.toString(),
-        originalPrice: product.originalPrice.toString(),
-        stockQuantity: product.stockQuantity.toString(),
-        ingredients: product.ingredients?.join(', ') || '',
-        benefits: product.benefits?.join(', ') || ''
+        name: product.name || '',
+        description: product.description || '',
+        price: product.price ? product.price.toString() : '',
+        originalPrice: product.originalPrice ? product.originalPrice.toString() : '',
+        category: product.category ? (product.category.id || product.category) : '',
+        subcategory: product.subcategory || '',
+        weight: product.weight || '',
+        stockQuantity: product.stockQuantity ? product.stockQuantity.toString() : '',
+        ingredients: Array.isArray(product.ingredients) ? product.ingredients.join(', ') : '',
+        benefits: Array.isArray(product.benefits) ? product.benefits.join(', ') : '',
+        inStock: typeof product.inStock === 'boolean' ? product.inStock : true
+      });
+    } else {
+      setFormData({
+        name: '',
+        description: '',
+        price: '',
+        originalPrice: '',
+        category: '',
+        subcategory: '',
+        weight: '',
+        stockQuantity: '',
+        ingredients: '',
+        benefits: '',
+        inStock: true
       });
     }
   }, [product]);
+  //Please fill all required fields and select an image.
+    const handleImageUpload = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      setImageFile(file);
+    }
+  };
+  useEffect(() => {
+    // Fetch categories from backend
+    async function fetchCategories() {
+      try {
+        const res = await dataService.getCategories();
+        setCategories(res.data || res); // support both axios/fetch or mock
+      } catch (err) {
+        setError('Failed to load categories');
+      }
+    }
+    fetchCategories();
+  }, []);
 
   const handleChange = (e) => {
     const { name, value, type, checked } = e.target;
@@ -48,25 +94,38 @@ const ProductForm = ({ product, onSave, onCancel }) => {
     setLoading(true);
     setError('');
 
+    // Validate required fields
+    if (!formData.name || !formData.description || !formData.price || !formData.originalPrice || !formData.category || !formData.weight || !formData.stockQuantity || (!product && !imageFile)) {
+      setError('Please fill all required fields' + (!product ? ' and select an image.' : '.'));
+      setLoading(false);
+      return;
+    }
+
     try {
       const productData = {
         ...formData,
+        category: formData.category,
         price: parseFloat(formData.price),
         originalPrice: parseFloat(formData.originalPrice),
         stockQuantity: parseInt(formData.stockQuantity),
-        ingredients: formData.ingredients.split(',').map(item => item.trim()).filter(Boolean),
-        benefits: formData.benefits.split(',').map(item => item.trim()).filter(Boolean),
+        ingredients: formData.ingredients,
+        benefits: formData.benefits,
+        inStock: !!formData.inStock,
         rating: product?.rating || 4.5,
         reviewCount: product?.reviewCount || 0,
         badges: product?.badges || []
       };
 
       if (product) {
-        dataService.updateProduct(product.id, productData);
+        // Edit mode: update product (no image update for now)
+        await dataService.updateProduct(product.id, productData);
       } else {
-        dataService.addProduct(productData);
+        // Add mode: use FormData for image upload
+        const form = new FormData();
+        form.append('product', new Blob([JSON.stringify(productData)], { type: 'application/json' }));
+        form.append('image', imageFile);
+        await dataService.addProduct(form, true);
       }
-
       onSave();
     } catch (err) {
       setError('Failed to save product. Please try again.');
@@ -74,30 +133,6 @@ const ProductForm = ({ product, onSave, onCancel }) => {
       setLoading(false);
     }
   };
-
-  const categories = [
-    { id: 'oils-ghee', name: 'Oils & Ghee' },
-    { id: 'spices-masalas', name: 'Spices & Masalas' },
-    { id: 'natural-sweeteners', name: 'Natural Sweeteners' },
-    { id: 'dairy-products', name: 'Dairy Products' },
-    { id: 'pickles-preserves', name: 'Pickles & Preserves' },
-    { id: 'sweets-desserts', name: 'Sweets & Desserts' }
-  ];
-
-  const handleImageUpload = (e) => {
-    const file = e.target.files[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onload = (event) => {
-        setFormData(prev => ({
-          ...prev,
-          image: event.target.result
-        }));
-      };
-      reader.readAsDataURL(file);
-    }
-  };
-
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
       <div className="bg-card border border-border rounded-lg w-full max-w-2xl max-h-[90vh] overflow-y-auto">
@@ -200,24 +235,25 @@ const ProductForm = ({ product, onSave, onCancel }) => {
             </div>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-foreground mb-1">
-                Category *
-              </label>
-              <select
-                name="category"
-                value={formData.category}
-                onChange={handleChange}
-                required
-                className="w-full h-10 px-3 rounded-md border border-border bg-background text-foreground"
-              >
-                <option value="">Select Category</option>
-                {categories.map((category, index) => (
-                  <option key={index} value={category.id}>{category.name}</option>
-                ))}
-              </select>
-            </div>
+           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+             <div>
+               <label className="block text-sm font-medium text-foreground mb-1">
+                 Category *
+               </label>
+               <select
+                 name="category"
+                 value={formData.category}
+                 onChange={handleChange}
+                 required
+                 className="w-full h-10 px-3 rounded-md border border-border bg-background text-foreground"
+                 disabled={categories.length === 0}
+               >
+                 <option value="">{categories.length === 0 ? 'Loading categories...' : 'Select Category'}</option>
+                 {categories.map((category) => (
+                   <option key={category.id} value={category.id}>{category.name}</option>
+                 ))}
+               </select>
+             </div>
 
             <div>
               <label className="block text-sm font-medium text-foreground mb-1">
@@ -243,10 +279,10 @@ const ProductForm = ({ product, onSave, onCancel }) => {
                 onChange={handleImageUpload}
                 className="w-full px-3 py-2 border border-border rounded-md bg-background text-foreground file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:bg-primary file:text-primary-foreground hover:file:bg-primary/90"
               />
-              {formData.image && (
+              {imageFile && (
                 <div className="mt-2">
                   <img
-                    src={formData.image}
+                    src={URL.createObjectURL(imageFile)}
                     alt="Preview"
                     className="w-20 h-20 object-cover rounded-md border"
                   />

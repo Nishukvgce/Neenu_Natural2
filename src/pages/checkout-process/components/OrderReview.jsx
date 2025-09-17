@@ -1,7 +1,30 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import Button from '../../../components/ui/Button';
 import Icon from '../../../components/AppIcon';
+import { useAuth } from '../../../contexts/AuthContext';
+import checkoutApi from '../../../services/checkoutApi';
 
+/**
+ * OrderReview Component - Step 4 of Checkout Process
+ * 
+ * This component shows the final order review before placement:
+ * 1. Displays all order details (address, delivery, payment)
+ * 2. Shows order summary with totals
+ * 3. Allows editing of previous steps
+ * 4. Handles final order placement
+ * 5. Shows loading states and error handling
+ * 
+ * Props:
+ * - onBack: Function to go back to previous steps
+ * - onPlaceOrder: Function to place the order
+ * - shippingAddress: Selected shipping address
+ * - deliveryOption: Selected delivery option
+ * - paymentMethod: Selected payment method
+ * - orderTotal: Total order amount
+ * - orderReviewData: Data from backend review API
+ * - isProcessing: Loading state for order placement
+ * - error: Error message if order placement fails
+ */
 const OrderReview = ({ 
   onBack, 
   onPlaceOrder, 
@@ -9,8 +32,34 @@ const OrderReview = ({
   deliveryOption, 
   paymentMethod, 
   orderTotal,
-  isProcessing = false 
+  orderReviewData,
+  isProcessing = false,
+  error = null
 }) => {
+  const { user } = useAuth();
+  const [serverReview, setServerReview] = useState(null);
+
+  // Use orderReviewData if provided, otherwise load from backend
+  useEffect(() => {
+    if (orderReviewData) {
+      setServerReview(orderReviewData);
+    } else {
+      const load = async () => {
+        try {
+          if (!user?.email) return;
+          const review = await checkoutApi.review(user.email);
+          setServerReview(review);
+        } catch (error) {
+          console.error('Failed to load order review:', error);
+        }
+      };
+      load();
+    }
+  }, [user?.email, orderReviewData]);
+
+  /**
+   * Handle order placement
+   */
   const handlePlaceOrder = () => {
     if (onPlaceOrder) {
       onPlaceOrder();
@@ -20,7 +69,13 @@ const OrderReview = ({
   const formatAddress = (address) => {
     if (!address) return 'No address provided';
     
-    if (typeof address === 'object') {
+    // Handle server address format (from backend)
+    if (address.name && address.street) {
+      return `${address.name}\n${address.street}${address.landmark ? ', ' + address.landmark : ''}\n${address.city}, ${address.state} - ${address.pincode}\n${address.phone}`;
+    }
+    
+    // Handle frontend address format
+    if (typeof address === 'object' && address.firstName) {
       return `${address?.firstName} ${address?.lastName}\n${address?.address}${address?.apartment ? ', ' + address?.apartment : ''}\n${address?.city}, ${address?.state} - ${address?.pincode}\n${address?.phone}`;
     }
     
@@ -61,7 +116,7 @@ const OrderReview = ({
             </Button>
           </div>
           <div className="font-body text-sm text-muted-foreground whitespace-pre-line">
-            {formatAddress(shippingAddress)}
+            {formatAddress(serverReview?.address || shippingAddress)}
           </div>
         </div>
 
@@ -174,6 +229,16 @@ const OrderReview = ({
           </p>
         </div>
 
+        {/* Error Display */}
+        {error && (
+          <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+            <div className="flex items-center">
+              <Icon name="AlertCircle" size={20} className="text-red-500 mr-2" />
+              <p className="text-red-600 text-sm">{error}</p>
+            </div>
+          </div>
+        )}
+
         {/* Action Buttons */}
         <div className="flex justify-between pt-6">
           <Button
@@ -194,6 +259,7 @@ const OrderReview = ({
             iconName="CheckCircle"
             iconPosition="right"
             className="min-w-[140px]"
+            disabled={isProcessing}
           >
             {isProcessing ? 'Processing...' : 'Place Order'}
           </Button>

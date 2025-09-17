@@ -10,6 +10,7 @@ import ProductGrid from './components/ProductGrid';
 import QuickViewModal from './components/QuickViewModal';
 import Button from '../../components/ui/Button';
 import dataService from '../../services/dataService';
+import productApi from '../../services/productApi';
 
 
 const ProductCollectionGrid = () => {
@@ -42,19 +43,50 @@ const ProductCollectionGrid = () => {
     const loadProducts = async () => {
       try {
         setLoading(true);
-        // Load products from async service
-        const response = await dataService.getProducts();
-        const allProducts = response.data;
+        // Load products from backend API
+        let apiProducts = [];
+        try {
+          console.log('Fetching products from backend API...');
+          const res = await productApi.getAll();
+          // Spring Boot API returns array directly
+          apiProducts = Array.isArray(res) ? res : [];
+          console.log('Successfully loaded products from API:', apiProducts.length);
+        } catch (e) {
+          console.warn('Backend API failed, falling back to local data:', e?.message);
+          // Fallback to hardcoded data from dataService
+          const response = await dataService.getProducts();
+          apiProducts = response?.data || [];
+          console.log('Loaded products from fallback data:', apiProducts.length);
+        }
+
+        // Normalize backend products to UI shape
+        const normalizedProducts = apiProducts.map((p) => ({
+          id: p?.id,
+          name: p?.name || p?.title,
+          category: p?.category || p?.categoryId || p?.subcategory || 'misc',
+          subcategory: p?.subcategory,
+          brand: p?.brand || p?.manufacturer || 'Brand',
+          price: p?.price ?? p?.salePrice ?? p?.mrp ?? 0,
+          salePrice: p?.salePrice ?? p?.price ?? p?.mrp ?? 0,
+          originalPrice: p?.originalPrice ?? p?.mrp ?? p?.price ?? 0,
+          rating: p?.rating ?? p?.ratingValue ?? 0,
+          bestseller: Boolean(p?.bestseller),
+          image: p?.image || p?.imageUrl || p?.image_path || p?.thumbnailUrl,
+          description: p?.description || '',
+          inStock: p?.inStock !== false, // Default to true if not specified
+          weight: p?.weight || 'N/A'
+        }));
 
         // Filter by category if specified in URL
         const urlParams = new URLSearchParams(location.search);
         const categoryParam = urlParams.get('category');
 
-        let filteredProducts = allProducts;
+        let filteredProducts = normalizedProducts;
         if (categoryParam) {
-          filteredProducts = allProducts.filter(product => 
+          filteredProducts = normalizedProducts.filter(product => 
             product.category === categoryParam || product.subcategory === categoryParam
           );
+          console.log(`Filtered products for category '${categoryParam}':`, filteredProducts.length);
         }
 
         setProducts(filteredProducts);
@@ -66,6 +98,8 @@ const ProductCollectionGrid = () => {
         }
       } catch (error) {
         console.error('Error loading products:', error);
+        // Set empty array as fallback
+        setProducts([]);
       } finally {
         setLoading(false);
       }
@@ -181,9 +215,10 @@ const ProductCollectionGrid = () => {
   const handleAddToCart = (product, variant = null, quantity = 1) => {
     const productToAdd = {
       id: product?.id,
+      productId: product?.id, // Add productId for API compatibility
       name: product?.name,
       image: product?.image,
-      price: variant?.salePrice || product?.salePrice,
+      price: variant?.price || product?.price, // Use 'price' instead of 'salePrice'
       originalPrice: variant?.originalPrice || product?.originalPrice,
       variant: variant?.weight || 'Default',
       category: product?.category,

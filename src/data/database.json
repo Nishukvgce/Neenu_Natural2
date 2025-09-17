@@ -1,166 +1,19 @@
 {
-  "users": [
-    {
-      "id": "1",
-      "username": "admin",
-      "password": "admin123",
-      "email": "admin@neenusnatural.com",
-      "role": "admin",
-      "name": "Administrator",
-      "phone": "+91 80 4567 8901",
-      "memberSince": "2024-01-01",
-      "isActive": true
-    },
-    {
-      "id": "2",
-      "email": "user@test.com",
-      "password": "user123",
-      "name": "Test User",
-      "role": "customer",
-      "phone": "+91 9876543211",
-      "addresses": [
-        {
-          "id": 1,
-          "type": "home",
-          "name": "Home Address",
-          "street": "123 Test Street",
-          "city": "Mumbai",
-          "state": "Maharashtra",
-          "pincode": "400001",
-          "isDefault": true
-        }
-      ],
-      "orders": [],
-      "wishlist": [1],
-      "createdAt": "2024-01-02T00:00:00Z"
-    }
-  ],
-  "products": [
-    {
-      "id": 1,
-      "name": "Organic Coconut Oil",
-      "description": "Pure, cold-pressed coconut oil from Kerala",
-      "price": 450,
-      "originalPrice": 500,
-      "category": "oils-ghee",
-      "subcategory": "coconut-oil",
-      "image": "https://images.unsplash.com/photo-1474979266404-7eaacbcd87c5?w=400&h=400&fit=crop",
-      "images": [
-        "https://images.unsplash.com/photo-1474979266404-7eaacbcd87c5?w=400&h=400&fit=crop",
-        "https://images.unsplash.com/photo-1474979266404-7eaacbcd87c5?w=400&h=400&fit=crop"
-      ],
-      "rating": 4.8,
-      "reviewCount": 156,
-      "badges": ["Organic", "Cold Pressed"],
-      "weight": "500ml",
-      "inStock": true,
-      "stockQuantity": 50,
-      "ingredients": ["100% Organic Coconut"],
-      "benefits": ["Rich in MCTs", "Natural moisturizer", "Cooking friendly"],
-      "nutritionalInfo": {
-        "calories": "862 per 100g",
-        "fat": "100g",
-        "saturatedFat": "87g"
-      }
-    },
-    {
-      "id": 2,
-      "name": "A2 Cow Ghee",
-      "description": "Traditional A2 cow ghee made from grass-fed cows",
-      "price": 850,
-      "originalPrice": 950,
-      "category": "oils-ghee",
-      "subcategory": "ghee",
-      "image": "https://images.unsplash.com/photo-1596040033229-a9821ebd058d?w=400&h=400&fit=crop",
-      "images": [
-        "https://images.unsplash.com/photo-1596040033229-a9821ebd058d?w=400&h=400&fit=crop"
-      ],
-      "rating": 4.9,
-      "reviewCount": 203,
-      "badges": ["A2 Cow Milk", "Chemical Free"],
-      "weight": "500ml",
-      "inStock": true,
-      "stockQuantity": 30,
-      "ingredients": ["A2 Cow Milk"],
-      "benefits": ["Easy to digest", "Rich in vitamins", "Traditional method"]
-    },
-    {
-      "id": 3,
-      "name": "Premium Organic Honey",
-      "price": 599,
-      "originalPrice": 650,
-      "category": "natural-sweeteners",
-      "subcategory": "honey",
-      "description": "Pure organic honey sourced from local beekeepers",
-      "image": "/assets/images/no_image.png",
-      "weight": "500g",
-      "featured": true,
-      "inStock": true,
-      "stockQuantity": 8,
-      "rating": 4.7,
-      "reviewCount": 89,
-      "badges": ["Organic", "Local"],
-      "ingredients": ["100% Pure Honey"],
-      "benefits": ["Natural sweetener", "Rich in antioxidants", "Energy booster"]
-    },
-    {
-      "id": 4,
-      "name": "Traditional Ghee",
-      "price": 899,
-      "originalPrice": 999,
-      "category": "dairy-products",
-      "subcategory": "ghee",
-      "description": "Handmade traditional ghee from grass-fed cows",
-      "image": "/assets/images/no_image.png",
-      "weight": "1kg",
-      "featured": true,
-      "inStock": true,
-      "stockQuantity": 5,
-      "rating": 4.8,
-      "reviewCount": 124,
-      "badges": ["Traditional", "Grass-Fed"],
-      "ingredients": ["Grass-Fed Cow Milk"],
-      "benefits": ["Rich in vitamins", "Traditional preparation", "Pure and natural"]
-    }
-  ],
-  "orders": [
-    {
-      "id": 1,
-      "userId": 2,
-      "items": [
-        {
-          "productId": 1,
-          "quantity": 2,
-          "price": 450
-        }
-      ],
-      "total": 900,
-      "status": "pending",
-      "shippingAddress": {
-        "name": "Test User",
-        "street": "123 Test Street",
-        "city": "Mumbai",
-        "state": "Maharashtra",
-        "pincode": "400001"
-      },
-      "paymentMethod": "cod",
-      "createdAt": "2024-01-15T10:30:00Z"
-    }
-  ],
-  "categories": [
-    "Natural Sweeteners",
-    "Dairy Products",
-    "Pickles & Preserves",
-    "Spices & Condiments",
-    "Sweets & Desserts",
-    "oils-ghee",
-    "spices-masalas"
-  ],
   "settings": {
     "siteName": "Neenu's Natural",
     "currency": "INR",
     "shippingFee": 50,
     "freeShippingThreshold": 500,
-    "taxRate": 0.18
+    "taxRate": 0.18,
+    "version": "1.0.0",
+    "lastUpdated": "2024-01-01T00:00:00Z"
+  },
+  "config": {
+    "apiBaseUrl": "http://localhost:8080/api",
+    "defaultImageUrl": "https://images.unsplash.com/photo-1586201375761-83865001e31c?w=400&h=400&fit=crop",
+    "fallbackImageUrl": "/assets/images/no_image.png",
+    "itemsPerPage": 12,
+    "maxCartItems": 50,
+    "sessionTimeout": 3600000
   }
 }

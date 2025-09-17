@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Plus, Edit, Trash2, Search, Filter } from 'lucide-react';
 import dataService from '../../../services/dataService';
+import productApi from '../../../services/productApi';
 import { Button } from '../../../components/ui/Button';
 import { Input } from '../../../components/ui/Input';
 import ProductForm from './ProductForm';
@@ -20,19 +21,53 @@ const ProductManagement = () => {
   const loadProducts = async () => {
     try {
       setLoading(true);
-      const response = await dataService.getProducts();
-      setProducts(response.data);
+      // Load products from backend API
+      let apiProducts = [];
+      try {
+        console.log('Admin Panel: Fetching products from backend API...');
+        const response = await productApi.getAll();
+        // Spring Boot API returns array directly (not response.data)
+        apiProducts = Array.isArray(response) ? response : [];
+        console.log('Admin Panel: Successfully loaded products from API:', apiProducts.length);
+      } catch (apiError) {
+        console.warn('Admin Panel: Backend API failed, falling back to local data:', apiError?.message);
+        // Fallback to hardcoded data from dataService
+        const fallbackResponse = await dataService.getProducts();
+        apiProducts = fallbackResponse?.data || [];
+        console.log('Admin Panel: Loaded products from fallback data:', apiProducts.length);
+      }
+
+      // Normalize backend products for admin panel
+      const normalizedProducts = apiProducts.map((p) => ({
+        id: p?.id,
+        name: p?.name || p?.title || 'Unnamed Product',
+        category: p?.category || p?.categoryId || p?.subcategory || 'misc',
+        subcategory: p?.subcategory,
+        brand: p?.brand || p?.manufacturer || 'Brand',
+        price: p?.price ?? p?.salePrice ?? p?.mrp ?? 0,
+        originalPrice: p?.originalPrice ?? p?.mrp ?? p?.price ?? 0,
+        rating: p?.rating ?? p?.ratingValue ?? 0,
+        image: p?.image || p?.imageUrl || p?.image_path || p?.thumbnailUrl || '/assets/images/no_image.png',
+        description: p?.description || 'No description available',
+        inStock: p?.inStock !== false, // Default to true if not specified
+        weight: p?.weight || 'N/A',
+        stockQuantity: p?.stockQuantity ?? p?.quantity ?? 0
+      }));
+
+      setProducts(normalizedProducts);
     } catch (error) {
-      console.error('Error loading products:', error);
+      console.error('Admin Panel: Error loading products:', error);
+      // Set empty array as fallback
+      setProducts([]);
     } finally {
       setLoading(false);
     }
   };
 
-  const filteredProducts = products.filter(product => {
-    const matchesSearch = product.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         product.description.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesCategory = !selectedCategory || product.category === selectedCategory;
+  const filteredProducts = (products || []).filter(product => {
+    const matchesSearch = (product?.name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+                         (product?.description || '').toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesCategory = !selectedCategory || product?.category === selectedCategory;
     return matchesSearch && matchesCategory;
   });
 

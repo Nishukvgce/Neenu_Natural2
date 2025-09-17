@@ -1,8 +1,27 @@
 import React, { useState } from 'react';
 import Button from '../../../components/ui/Button';
 import Icon from '../../../components/AppIcon';
+import { useAuth } from '../../../contexts/AuthContext';
+import checkoutApi from '../../../services/checkoutApi';
 
-const DeliveryOptions = ({ onNext, onBack, shippingAddress }) => {
+/**
+ * DeliveryOptions Component - Step 2 of Checkout Process
+ * 
+ * This component handles delivery option selection:
+ * 1. Shows available delivery options based on location
+ * 2. Displays pricing and delivery times
+ * 3. Saves delivery selection to backend
+ * 4. Proceeds to payment method selection
+ * 
+ * Props:
+ * - onNext: Function to proceed to next step
+ * - onBack: Function to go back to previous step
+ * - shippingAddress: Selected shipping address
+ * - user: Current user object
+ * - isLoading: Loading state for form submission
+ */
+const DeliveryOptions = ({ onNext, onBack, shippingAddress, user: parentUser, isLoading = false }) => {
+  const { user } = useAuth();
   const [selectedOption, setSelectedOption] = useState('');
 
   const isBengaluru = shippingAddress?.city?.toLowerCase() === 'bengaluru'|| shippingAddress?.pincode?.startsWith('560');
@@ -16,27 +35,53 @@ const DeliveryOptions = ({ onNext, onBack, shippingAddress }) => {
       icon: 'Truck',
       recommended: false
     },
-    {
-      id: 'express',
-      name: 'Express Delivery',
-      description: isBengaluru ? 'Next business day' : '2-3 business days',
-      price: isBengaluru ? 99 : 149,
-      icon: 'Zap',
-      recommended: true
-    },
-    {
-      id: 'premium',
-      name: 'Premium Delivery',
-      description: isBengaluru ? 'Same day delivery' : 'Next business day',
-      price: isBengaluru ? 199 : 249,
-      icon: 'Clock',
-      recommended: false
-    }
+    // {
+    //   id: 'express',
+    //   name: 'Express Delivery',
+    //   description: isBengaluru ? 'Next business day' : '2-3 business days',
+    //   price: isBengaluru ? 99 : 149,
+    //   icon: 'Zap',
+    //   recommended: true
+    // },
+    // {
+    //   id: 'premium',
+    //   name: 'Premium Delivery',
+    //   description: isBengaluru ? 'Same day delivery' : 'Next business day',
+    //   price: isBengaluru ? 199 : 249,
+    //   icon: 'Clock',
+    //   recommended: false
+    // }
   ];
 
-  const handleSubmit = (e) => {
+  /**
+   * Handle form submission
+   * Saves delivery option selection and proceeds to payment step
+   */
+  const handleSubmit = async (e) => {
     e?.preventDefault();
-    if (selectedOption) {
+    
+    if (!selectedOption) {
+      return;
+    }
+    
+    try {
+      const selected = deliveryOptions?.find(option => option?.id === selectedOption);
+      if (!selected) {
+        throw new Error('Selected delivery option not found');
+      }
+      
+      // Save delivery option to backend
+      if (user?.email) {
+        await checkoutApi.saveSelection(user.email, {
+          deliveryOption: selected?.id
+        });
+        console.log('Delivery option saved:', selected?.id);
+      }
+      
+      onNext(selected);
+    } catch (error) {
+      console.error('Error saving delivery option:', error);
+      // Continue with local selection even if backend save fails
       const selected = deliveryOptions?.find(option => option?.id === selectedOption);
       onNext(selected);
     }
@@ -130,8 +175,8 @@ const DeliveryOptions = ({ onNext, onBack, shippingAddress }) => {
                 Delivery Information
               </h4>
               <ul className="font-body text-sm text-muted-foreground space-y-1">
-                <li>• Orders placed before 2 PM are processed the same day</li>
-                <li>• Weekend deliveries available for express and premium options</li>
+                {/* <li>• Orders placed before 2 PM are processed the same day</li>
+                <li>• Weekend deliveries available for express and premium options</li> */}
                 <li>• Free delivery on orders above ₹{isBengaluru ? '499' : '999'}</li>
                 <li>• All products are carefully packaged to maintain freshness</li>
               </ul>
@@ -146,6 +191,7 @@ const DeliveryOptions = ({ onNext, onBack, shippingAddress }) => {
             onClick={onBack}
             iconName="ArrowLeft"
             iconPosition="left"
+            disabled={isLoading}
           >
             Back to Shipping
           </Button>
@@ -154,9 +200,10 @@ const DeliveryOptions = ({ onNext, onBack, shippingAddress }) => {
             variant="default"
             iconName="ArrowRight"
             iconPosition="right"
-            disabled={!selectedOption}
+            disabled={!selectedOption || isLoading}
+            loading={isLoading}
           >
-            Continue to Payment
+            {isLoading ? 'Processing...' : 'Continue to Payment'}
           </Button>
         </div>
       </form>

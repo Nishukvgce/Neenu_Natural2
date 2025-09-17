@@ -3,6 +3,8 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import { useCart } from '../../contexts/CartContext';
 import dataService from '../../services/dataService';
+import userApi from '../../services/userApi';
+import orderApi from '../../services/orderApi';
 import Header from '../../components/ui/Header';
 import DashboardSidebar from './components/DashboardSidebar';
 import DashboardOverview from './components/DashboardOverview';
@@ -36,27 +38,12 @@ const UserAccountDashboard = () => {
     }
   }, [authUser, loading, navigate]);
 
-  // Only use authenticated user data - no fallback data
-  const [user, setUser] = useState({
-    id: authUser?.id,
-    name: authUser?.name || authUser?.email,
-    email: authUser?.email,
-    phone: authUser?.phone,
-    dateOfBirth: authUser?.dateOfBirth,
-    gender: authUser?.gender,
-    memberSince: authUser?.memberSince,
-    totalOrders: authUser?.totalOrders || 0,
-    totalSpent: authUser?.totalSpent || 0,
-    totalSaved: authUser?.totalSaved || 0,
-    loyaltyPoints: authUser?.loyaltyPoints || 0,
-    cartItemCount: getCartItemCount(),
-    wishlistCount: authUser?.wishlistCount || 0,
-    lastPasswordChange: authUser?.lastPasswordChange
-  });
+  // Only use authenticated user data - fetch profile from backend
+  const [user, setUser] = useState(null);
 
   // Calculate real user stats from orders
   useEffect(() => {
-    if (orders.length > 0) {
+    if (Array.isArray(orders) && orders.length > 0) {
       const totalSpent = orders.reduce((sum, order) => sum + (parseFloat(order.total) || 0), 0);
       const totalSaved = orders.reduce((sum, order) => sum + (parseFloat(order.discount) || 0), 0);
       const loyaltyPoints = Math.floor(totalSpent * 0.1); // 10% of spending as points
@@ -72,118 +59,201 @@ const UserAccountDashboard = () => {
     }
   }, [orders, getCartItemCount]);
 
-  // Update user data when authUser changes
+  // Fetch user profile from backend when logged in
   useEffect(() => {
-    if (authUser) {
-      setUser({
-        id: authUser.id || 1,
-        name: authUser.name || authUser.email || "Guest User",
-        email: authUser.email || "guest@example.com",
-        phone: authUser.phone || "+91 9876543210",
-        dateOfBirth: authUser.dateOfBirth || "1990-05-15",
-        gender: authUser.gender || "Not specified",
-        memberSince: authUser.memberSince || "January 2023",
-        totalOrders: authUser.totalOrders || 0,
-        totalSpent: authUser.totalSpent || "0",
-        totalSaved: authUser.totalSaved || "0",
-        loyaltyPoints: authUser.loyaltyPoints || 0,
-        wishlistCount: authUser.wishlistCount || 0,
-        lastPasswordChange: authUser.lastPasswordChange || "Not set"
-      });
-    }
-  }, [authUser]);
-
-  // Load user orders
-  useEffect(() => {
-    const loadUserOrders = () => {
+    const loadProfile = async () => {
       try {
-        const userOrders = dataService.getOrdersByUserId(user?.id);
-        console.log('Loaded user orders:', userOrders);
-        setOrders(userOrders);
+        if (!authUser?.email) return;
+        const profile = await userApi.getProfile(authUser.email);
+        setUser({
+          id: profile?.id,
+          name: profile?.name || authUser?.name || authUser?.email,
+          email: profile?.email || authUser?.email,
+          phone: profile?.phone,
+          dateOfBirth: profile?.dateOfBirth,
+          gender: profile?.gender,
+          memberSince: profile?.memberSince,
+          totalOrders: profile?.totalOrders || 0,
+          totalSpent: profile?.totalSpent || 0,
+          totalSaved: profile?.totalSaved || 0,
+          loyaltyPoints: profile?.loyaltyPoints || 0,
+          cartItemCount: getCartItemCount(),
+          wishlistCount: authUser?.wishlistCount || 0,
+          lastPasswordChange: profile?.lastPasswordChange
+        });
+      } catch (e) {
+        console.error('Failed to load profile', e);
+      }
+    };
+    loadProfile();
+  }, [authUser, getCartItemCount]);
+
+  // Load user orders from backend API
+  useEffect(() => {
+    const loadUserOrders = async () => {
+      try {
+        if (user?.email) {
+          const userOrders = await orderApi.getUserOrders(user.email);
+          console.log('Loaded user orders:', userOrders);
+          setOrders(userOrders || []);
+        }
       } catch (error) {
         console.error('Error loading user orders:', error);
         setOrders([]);
       }
     };
 
-    if (user?.id) {
+    if (user?.email) {
       loadUserOrders();
     }
-  }, [user?.id]);
+  }, [user?.email]);
 
-  // Mock addresses data
-  const [addresses, setAddresses] = useState([
-    {
-      id: 1,
-      name: "Priya Sharma",
-      phone: "+91 9876543210",
-      street: "123, MG Road, Koramangala",
-      city: "Bengaluru",
-      state: "Karnataka",
-      pincode: "560034",
-      landmark: "Near Forum Mall",
-      addressType: "Home",
-      isDefault: true
-    },
-    {
-      id: 2,
-      name: "Priya Sharma",
-      phone: "+91 9876543210",
-      street: "456, Brigade Road, Commercial Street",
-      city: "Bengaluru",
-      state: "Karnataka",
-      pincode: "560001",
-      landmark: "Opposite Metro Station",
-      addressType: "Work",
-      isDefault: false
-    }
-  ]);
+  // Addresses from backend
+  const [addresses, setAddresses] = useState([]);
+  useEffect(() => {
+    const loadAddresses = async () => {
+      try {
+        if (!authUser?.email) return;
+        const list = await userApi.getAddresses(authUser.email);
+        setAddresses(Array.isArray(list) ? list : []);
+      } catch (e) {
+        console.error('Failed to load addresses', e);
+        setAddresses([]);
+      }
+    };
+    loadAddresses();
+  }, [authUser?.email]);
 
-  // Mock wishlist data
-  const [wishlistItems, setWishlistItems] = useState([
-    {
-      id: 1,
-      name: "Organic Basmati Rice",
-      price: 299.00,
-      originalPrice: 349.00,
-      image: "https://images.pexels.com/photos/4198015/pexels-photo-4198015.jpeg",
-      variants: ["1kg", "2kg", "5kg"],
-      selectedVariant: "1kg",
-      inStock: true,
-      rating: 4.5,
-      reviewCount: 128,
-      badges: ["Organic", "Premium"],
-      addedDate: "2024-08-20T10:30:00Z"
-    },
-    {
-      id: 2,
-      name: "Cold Pressed Sesame Oil",
-      price: 449.00,
-      originalPrice: 499.00,
-      image: "https://images.pexels.com/photos/4041392/pexels-photo-4041392.jpeg",
-      variants: ["500ml", "1L"],
-      selectedVariant: "500ml",
-      inStock: true,
-      rating: 4.8,
-      reviewCount: 89,
-      badges: ["Cold Pressed"],
-      addedDate: "2024-08-18T14:15:00Z"
-    },
-    {
-      id: 3,
-      name: "Handmade Pickle Combo",
-      price: 599.00,
-      originalPrice: 699.00,
-      image: "https://images.pexels.com/photos/4198015/pexels-photo-4198015.jpeg",
-      variants: ["3 Jars", "6 Jars"],
-      selectedVariant: "3 Jars",
-      inStock: false,
-      rating: 4.3,
-      reviewCount: 45,
-      badges: ["Handmade", "Traditional"],
-      addedDate: "2024-08-15T09:45:00Z"
+  // Wishlist data - fetch from API
+  const [wishlistItems, setWishlistItems] = useState([]);
+  const [wishlistLoading, setWishlistLoading] = useState(false);
+  const [wishlistError, setWishlistError] = useState(null);
+
+  // Fetch wishlist from backend API
+  useEffect(() => {
+    const fetchWishlist = async () => {
+      if (!authUser?.email) {
+        setWishlistItems([]);
+        return;
+      }
+
+      try {
+        setWishlistLoading(true);
+        setWishlistError(null);
+        
+        console.log('Fetching wishlist for user:', authUser.email);
+        
+        // Try to fetch from wishlist API
+        const response = await fetch(`http://localhost:8080/api/wishlist`, {
+          method: 'GET',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-User-Email': authUser.email
+          }
+        });
+
+        if (response.ok) {
+          const wishlistData = await response.json();
+          console.log('Successfully fetched wishlist:', wishlistData.length, 'items');
+          
+          // Transform API data to match frontend expectations
+          const transformedWishlist = wishlistData.map(item => ({
+            id: item.productId || item.id,
+            name: item.productName || item.name,
+            price: item.productPrice || item.price || 0,
+            originalPrice: item.originalPrice || item.productPrice || item.price || 0,
+            image: item.productImage || item.image || "https://images.unsplash.com/photo-1586201375761-83865001e31c?w=400&h=400&fit=crop",
+            variants: item.variants || ["Default"],
+            selectedVariant: item.selectedVariant || "Default",
+            inStock: item.inStock !== false,
+            rating: item.rating || 4.5,
+            reviewCount: item.reviewCount || 0,
+            badges: item.badges || [],
+            addedDate: item.createdAt || item.addedDate || new Date().toISOString()
+          }));
+          
+          setWishlistItems(transformedWishlist);
+        } else if (response.status === 404) {
+          // No wishlist found - normal for new users
+          console.log('No wishlist found for user, using empty array');
+          setWishlistItems([]);
+        } else {
+          throw new Error(`Failed to fetch wishlist: ${response.status}`);
+        }
+      } catch (error) {
+        console.error('Error fetching wishlist:', error);
+        setWishlistError(error.message);
+        
+        // Fallback to localStorage wishlist if API fails
+        try {
+          const localWishlist = localStorage.getItem('neenu_wishlist');
+          if (localWishlist) {
+            const parsedWishlist = JSON.parse(localWishlist);
+            if (Array.isArray(parsedWishlist)) {
+              setWishlistItems(parsedWishlist);
+              console.log('Using localStorage wishlist as fallback');
+            }
+          } else {
+            setWishlistItems([]);
+          }
+        } catch (localError) {
+          console.error('Error loading localStorage wishlist:', localError);
+          setWishlistItems([]);
+        }
+      } finally {
+        setWishlistLoading(false);
+      }
+    };
+
+    fetchWishlist();
+  }, [authUser?.email]);
+
+  // Handle remove from wishlist
+  const handleRemoveFromWishlist = async (productId) => {
+    if (!authUser?.email) return;
+
+    try {
+      console.log('Removing product from wishlist:', productId);
+      
+      const response = await fetch(`http://localhost:8080/api/wishlist/${productId}`, {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-User-Email': authUser.email
+        }
+      });
+
+      if (response.ok) {
+        // Remove from local state
+        setWishlistItems(prev => prev.filter(item => item.id !== productId));
+        console.log('Successfully removed from wishlist');
+        
+        // Show success notification
+        const notification = document.createElement('div');
+        notification.className = 'fixed top-4 right-4 z-50 p-4 rounded-lg shadow-lg max-w-sm bg-green-500 text-white';
+        notification.innerHTML = '<div class="flex items-center gap-2"><span>Removed from wishlist!</span></div>';
+        document.body.appendChild(notification);
+        setTimeout(() => notification.remove(), 3000);
+      } else {
+        throw new Error('Failed to remove from wishlist');
+      }
+    } catch (error) {
+      console.error('Error removing from wishlist:', error);
+      
+      // Fallback: remove from localStorage
+      try {
+        const localWishlist = localStorage.getItem('neenu_wishlist');
+        if (localWishlist) {
+          const parsedWishlist = JSON.parse(localWishlist);
+          const updatedWishlist = parsedWishlist.filter(item => item.id !== productId);
+          localStorage.setItem('neenu_wishlist', JSON.stringify(updatedWishlist));
+          setWishlistItems(updatedWishlist);
+        }
+      } catch (localError) {
+        console.error('Error updating localStorage wishlist:', localError);
+      }
     }
-  ]);
+  };
 
   // Mock preferences data
   const [preferences, setPreferences] = useState({
@@ -249,26 +319,31 @@ const UserAccountDashboard = () => {
     console.log('Profile updated:', updatedData);
   };
 
-  const handleAddAddress = (addressData) => {
-    const newAddress = {
-      id: Date.now(),
-      ...addressData,
-      isDefault: addresses?.length === 0
-    };
-    setAddresses(prev => [...prev, newAddress]);
-    console.log('Address added:', newAddress);
+  const handleAddAddress = async (addressData) => {
+    try {
+      const saved = await userApi.addAddress(authUser.email, addressData);
+      setAddresses(prev => [...prev, saved]);
+    } catch (e) {
+      console.error('Add address failed', e);
+    }
   };
 
-  const handleUpdateAddress = (id, updatedData) => {
-    setAddresses(prev => prev?.map(addr => 
-      addr?.id === id ? { ...addr, ...updatedData } : addr
-    ));
-    console.log('Address updated:', id, updatedData);
+  const handleUpdateAddress = async (id, updatedData) => {
+    try {
+      const saved = await userApi.updateAddress(authUser.email, id, updatedData);
+      setAddresses(prev => prev?.map(addr => addr?.id === id ? saved : addr));
+    } catch (e) {
+      console.error('Update address failed', e);
+    }
   };
 
-  const handleDeleteAddress = (id) => {
-    setAddresses(prev => prev?.filter(addr => addr?.id !== id));
-    console.log('Address deleted:', id);
+  const handleDeleteAddress = async (id) => {
+    try {
+      await userApi.deleteAddress(authUser.email, id);
+      setAddresses(prev => prev?.filter(addr => addr?.id !== id));
+    } catch (e) {
+      console.error('Delete address failed', e);
+    }
   };
 
   const handleSetDefaultAddress = (id) => {
@@ -277,11 +352,6 @@ const UserAccountDashboard = () => {
       isDefault: addr?.id === id
     })));
     console.log('Default address set:', id);
-  };
-
-  const handleRemoveFromWishlist = (id) => {
-    setWishlistItems(prev => prev?.filter(item => item?.id !== id));
-    console.log('Removed from wishlist:', id);
   };
 
   const handleAddToCart = (item) => {

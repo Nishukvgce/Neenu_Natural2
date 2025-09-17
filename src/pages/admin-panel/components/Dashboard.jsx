@@ -186,7 +186,7 @@ const Dashboard = () => {
   
   const handleBulkRestock = () => {
     // Show modal or navigate to bulk stock management
-    alert('Bulk restock feature - would open a dedicated stock management interface');
+    // alert('Bulk restock feature - would open a dedicated stock management interface');
   };
 
   // CSV Export Functions
@@ -528,7 +528,7 @@ const Dashboard = () => {
               className="flex items-center space-x-2 px-3 py-1 bg-primary/10 text-primary rounded-md text-sm hover:bg-primary/20 transition-colors"
             >
               <Plus className="w-4 h-4" />
-              <span>+ Bulk</span>
+              {/* <span>+ Bulk</span> */}
             </button>
           </div>
           <div className="space-y-3">

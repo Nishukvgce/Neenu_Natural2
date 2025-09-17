@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
-import { Search, Eye, Package, Truck, CheckCircle, Download, Printer } from 'lucide-react';
-import dataService from '../../../services/dataService';
+import { Search, Eye, Package, Truck, CheckCircle, Download, Printer, AlertCircle } from 'lucide-react';
+import orderApi from '../../../services/orderApi';
 import { Button } from '../../../components/ui/Button';
 import { Input } from '../../../components/ui/Input';
 import { downloadInvoice, printInvoice } from '../../../utils/invoiceGenerator';
@@ -11,28 +11,44 @@ const OrderManagement = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
   useEffect(() => {
     loadOrders();
   }, []);
 
-  const loadOrders = () => {
+  const loadOrders = async () => {
     setLoading(true);
-    const allOrders = dataService.getOrders();
-    setOrders(allOrders);
-    setLoading(false);
+    setError(null);
+    try {
+      const allOrders = await orderApi.getAllOrders();
+      setOrders(allOrders || []);
+    } catch (err) {
+      console.error('Error loading orders:', err);
+      setError(err.message || 'Failed to load orders');
+      setOrders([]);
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const filteredOrders = orders.filter(order => {
+  const filteredOrders = Array.isArray(orders) ? orders.filter(order => {
     const matchesSearch = order.id.toString().includes(searchTerm) ||
-                         order.shippingAddress?.name?.toLowerCase().includes(searchTerm.toLowerCase());
+                         order.shipping?.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                         order.user?.email?.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesStatus = !statusFilter || order.status === statusFilter;
     return matchesSearch && matchesStatus;
-  });
+  }) : [];
 
-  const updateOrderStatus = (orderId, newStatus) => {
-    dataService.updateOrder(orderId, { status: newStatus });
-    loadOrders();
+  const updateOrderStatus = async (orderId, newStatus) => {
+    try {
+      await orderApi.updateOrderStatus(orderId, newStatus);
+      // Reload orders to get updated data
+      loadOrders();
+    } catch (err) {
+      console.error('Error updating order status:', err);
+      alert('Failed to update order status: ' + (err.message || 'Unknown error'));
+    }
   };
 
   const getStatusIcon = (status) => {
@@ -51,30 +67,38 @@ const OrderManagement = () => {
   };
 
   const getStatusColor = (status) => {
-    switch (status) {
+    switch (status?.toLowerCase()) {
       case 'pending':
-        return 'text-warning bg-warning/10';
+        return 'text-yellow-800 bg-yellow-100';
       case 'processing':
-        return 'text-primary bg-primary/10';
+        return 'text-blue-800 bg-blue-100';
       case 'shipped':
-        return 'text-primary bg-primary/10';
+        return 'text-indigo-800 bg-indigo-100';
       case 'delivered':
-        return 'text-success bg-success/10';
+        return 'text-green-800 bg-green-100';
       case 'cancelled':
-        return 'text-destructive bg-destructive/10';
+        return 'text-red-800 bg-red-100';
       default:
-        return 'text-muted-foreground bg-muted/10';
+        return 'text-gray-800 bg-gray-100';
     }
   };
 
   const handleDownloadInvoice = (order) => {
     try {
-      const settings = dataService.getSettings();
-      const customer = dataService.getUser(order.userId) || { 
-        name: order.customerName, 
-        email: order.customerEmail, 
-        phone: order.customerPhone 
+      // Create a mock settings object for invoice generation
+      const settings = {
+        companyName: "Neenu's Natural",
+        companyAddress: "123 Natural Street, Bangalore, India",
+        companyPhone: "+91 9876543210",
+        companyEmail: "info@neenusnatural.com"
       };
+      
+      const customer = {
+        name: order.shipping?.name || order.user?.name || 'Customer',
+        email: order.user?.email || 'customer@example.com',
+        phone: order.shipping?.phone || 'N/A'
+      };
+      
       downloadInvoice(order, customer, settings);
     } catch (error) {
       console.error('Error downloading invoice:', error);
@@ -84,12 +108,20 @@ const OrderManagement = () => {
 
   const handlePrintInvoice = (order) => {
     try {
-      const settings = dataService.getSettings();
-      const customer = dataService.getUser(order.userId) || { 
-        name: order.customerName, 
-        email: order.customerEmail, 
-        phone: order.customerPhone 
+      // Create a mock settings object for invoice generation
+      const settings = {
+        companyName: "Neenu's Natural",
+        companyAddress: "123 Natural Street, Bangalore, India",
+        companyPhone: "+91 9876543210",
+        companyEmail: "info@neenusnatural.com"
       };
+      
+      const customer = {
+        name: order.shipping?.name || order.user?.name || 'Customer',
+        email: order.user?.email || 'customer@example.com',
+        phone: order.shipping?.phone || 'N/A'
+      };
+      
       printInvoice(order, customer, settings);
     } catch (error) {
       console.error('Error printing invoice:', error);
@@ -98,7 +130,39 @@ const OrderManagement = () => {
   };
 
   if (loading) {
-    return <div className="flex items-center justify-center h-64">Loading...</div>;
+    return (
+      <div className="space-y-6">
+        <div>
+          <h1 className="text-2xl font-heading font-bold text-foreground">Order Management</h1>
+          <p className="text-muted-foreground">Track and manage customer orders</p>
+        </div>
+        <div className="flex items-center justify-center h-64">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
+            <p className="text-muted-foreground">Loading orders...</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="space-y-6">
+        <div>
+          <h1 className="text-2xl font-heading font-bold text-foreground">Order Management</h1>
+          <p className="text-muted-foreground">Track and manage customer orders</p>
+        </div>
+        <div className="bg-red-50 border border-red-200 rounded-lg p-6 text-center">
+          <AlertCircle className="w-12 h-12 text-red-500 mx-auto mb-4" />
+          <h3 className="text-lg font-semibold text-red-800 mb-2">Error Loading Orders</h3>
+          <p className="text-red-600 mb-4">{error}</p>
+          <Button variant="outline" onClick={loadOrders}>
+            Try Again
+          </Button>
+        </div>
+      </div>
+    );
   }
 
   return (
@@ -172,24 +236,24 @@ const OrderManagement = () => {
                     <div>
                       <div className="text-sm font-medium text-foreground">#{order.id}</div>
                       <div className="text-sm text-muted-foreground">
-                        {order.items?.length} item(s)
+                        {order.items?.length || 0} item(s)
                       </div>
                     </div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div>
                       <div className="text-sm font-medium text-foreground">
-                        {order.shippingAddress?.name}
+                        {order.shipping?.name || order.user?.name || 'N/A'}
                       </div>
                       <div className="text-sm text-muted-foreground">
-                        {order.shippingAddress?.city}
+                        {order.user?.email || 'N/A'}
                       </div>
                     </div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="text-sm font-medium text-foreground">₹{order.total}</div>
+                    <div className="text-sm font-medium text-foreground">₹{order.total?.toFixed(2) || '0.00'}</div>
                     <div className="text-sm text-muted-foreground capitalize">
-                      {order.paymentMethod}
+                      {order.paymentMethod || 'N/A'}
                     </div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
@@ -199,7 +263,7 @@ const OrderManagement = () => {
                     </div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-muted-foreground">
-                    {new Date(order.createdAt).toLocaleDateString()}
+                    {order.createdAt ? new Date(order.createdAt).toLocaleDateString() : 'N/A'}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="flex items-center space-x-2">

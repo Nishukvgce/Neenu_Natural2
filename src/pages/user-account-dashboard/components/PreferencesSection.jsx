@@ -114,9 +114,9 @@ const PreferencesSection = ({ preferences, onUpdatePreferences }) => {
     <div className="space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
-        <h1 className="font-heading text-2xl font-bold text-foreground">
+        {/* <h1 className="font-heading text-2xl font-bold text-foreground">
           Preferences & Settings
-        </h1>
+        </h1> */}
         {hasChanges && (
           <div className="flex space-x-2">
             <Button

@@ -10,15 +10,17 @@ const UserManagement = () => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    loadUsers();
-  }, []);
-
-  const loadUsers = () => {
-    setLoading(true);
-    const allUsers = dataService.getUsers().filter(user => user.role === 'customer');
-    setUsers(allUsers);
-    setLoading(false);
-  };
+  setLoading(true);
+  dataService.getAllUsers()
+    .then(allUsers => {
+      setUsers(allUsers.filter(user => user.role !== 'admin')); // show only non-admins
+      setLoading(false);
+    })
+    .catch(() => {
+      setUsers([]);
+      setLoading(false);
+    });
+}, []);
 
   const filteredUsers = users.filter(user => {
     return user.name.toLowerCase().includes(searchTerm.toLowerCase()) ||

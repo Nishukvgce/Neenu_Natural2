@@ -4,8 +4,30 @@ import Select from '../../../components/ui/Select';
 import Button from '../../../components/ui/Button';
 import { Checkbox } from '../../../components/ui/Checkbox';
 import Icon from '../../../components/AppIcon';
+import { useAuth } from '../../../contexts/AuthContext';
+import checkoutApi from '../../../services/checkoutApi';
 
-const PaymentForm = ({ onNext, onBack, orderTotal }) => {
+/**
+ * PaymentForm Component - Step 3 of Checkout Process
+ * 
+ * This component handles payment method selection:
+ * 1. Shows available payment methods (COD, UPI, Card, etc.)
+ * 2. Collects payment details based on selected method
+ * 3. Validates payment information
+ * 4. Saves payment method selection to backend
+ * 5. Proceeds to order review step
+ * 
+ * Props:
+ * - onNext: Function to proceed to next step
+ * - onBack: Function to go back to previous step
+ * - orderTotal: Total order amount
+ * - paymentMethod: Currently selected payment method
+ * - setPaymentMethod: Function to update payment method
+ * - user: Current user object
+ * - isLoading: Loading state for form submission
+ */
+const PaymentForm = ({ onNext, onBack, orderTotal, paymentMethod: initialPaymentMethod, setPaymentMethod: setParentPaymentMethod, user: parentUser, isLoading = false }) => {
+  const { user } = useAuth();
   const [paymentMethod, setPaymentMethod] = useState('');
   const [cardData, setCardData] = useState({
     cardNumber: '',
@@ -27,30 +49,30 @@ const PaymentForm = ({ onNext, onBack, orderTotal }) => {
       fee: 0,
       available: true
     },
-    {
-      id: 'upi',
-      name: 'UPI Payment',
-      description: 'Pay using Google Pay, PhonePe, Paytm, etc.',
-      icon: 'Smartphone',
-      fee: 0,
-      available: true
-    },
-    {
-      id: 'card',
-      name: 'Credit/Debit Card',
-      description: 'Visa, Mastercard, RuPay accepted',
-      icon: 'CreditCard',
-      fee: 0,
-      available: true
-    },
-    {
-      id: 'netbanking',
-      name: 'Net Banking',
-      description: 'Pay directly from your bank account',
-      icon: 'Building2',
-      fee: 0,
-      available: true
-    }
+    // {
+    //   id: 'upi',
+    //   name: 'UPI Payment',
+    //   description: 'Pay using Google Pay, PhonePe, Paytm, etc.',
+    //   icon: 'Smartphone',
+    //   fee: 0,
+    //   available: true
+    // },
+    // {
+    //   id: 'card',
+    //   name: 'Credit/Debit Card',
+    //   description: 'Visa, Mastercard, RuPay accepted',
+    //   icon: 'CreditCard',
+    //   fee: 0,
+    //   available: true
+    // },
+    // {
+    //   id: 'netbanking',
+    //   name: 'Net Banking',
+    //   description: 'Pay directly from your bank account',
+    //   icon: 'Building2',
+    //   fee: 0,
+    //   available: true
+    // }
   ];
 
   const monthOptions = Array.from({ length: 12 }, (_, i) => ({
@@ -107,21 +129,47 @@ const PaymentForm = ({ onNext, onBack, orderTotal }) => {
     return Object.keys(newErrors)?.length === 0;
   };
 
-  const handleSubmit = (e) => {
+  /**
+   * Handle form submission
+   * Validates payment data and saves selection to backend
+   */
+  const handleSubmit = async (e) => {
     e?.preventDefault();
+    
     if (!paymentMethod) {
       setErrors({ paymentMethod: 'Please select a payment method' });
       return;
     }
 
-    if (validatePaymentForm()) {
+    if (!validatePaymentForm()) {
+      return;
+    }
+
+    try {
       const paymentData = {
         method: paymentMethod,
         ...(paymentMethod === 'card' && { cardData }),
         ...(paymentMethod === 'upi' && { upiId }),
         savePaymentMethod
       };
+
+      // Save payment method to backend
+      if (user?.email) {
+        await checkoutApi.saveSelection(user.email, {
+          paymentMethod: paymentMethod
+        });
+        console.log('Payment method saved:', paymentMethod);
+      }
+
+      // Update parent component's payment method state
+      if (setParentPaymentMethod) {
+        setParentPaymentMethod(paymentData);
+      }
+
       onNext(paymentData);
+    } catch (error) {
+      console.error('Error saving payment method:', error);
+      setErrors({ submit: 'Failed to save payment method. Please try again.' });
     }
   };
 
@@ -196,8 +244,11 @@ const PaymentForm = ({ onNext, onBack, orderTotal }) => {
           ))}
         </div>
 
-        {errors?.paymentMethod && (
-          <p className="text-destructive text-sm font-body">{errors?.paymentMethod}</p>
+        {/* Error Display */}
+        {(errors?.paymentMethod || errors?.submit) && (
+          <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+            <p className="text-red-600 text-sm">{errors?.paymentMethod || errors?.submit}</p>
+          </div>
         )}
 
         {/* Card Payment Form */}
@@ -293,9 +344,9 @@ const PaymentForm = ({ onNext, onBack, orderTotal }) => {
                 </h4>
                 <ul className="font-body text-sm text-muted-foreground space-y-1">
                   <li>• Pay ₹{orderTotal?.toFixed(2)} when your order is delivered</li>
-                  <li>• Please keep exact change ready</li>
+                  {/* <li>• Please keep exact change ready</li>
                   <li>• COD available for orders up to ₹5,000</li>
-                  <li>• Additional verification may be required</li>
+                  <li>• Additional verification may be required</li> */}
                 </ul>
               </div>
             </div>
@@ -333,6 +384,7 @@ const PaymentForm = ({ onNext, onBack, orderTotal }) => {
             onClick={onBack}
             iconName="ArrowLeft"
             iconPosition="left"
+            disabled={isLoading}
           >
             Back to Delivery
           </Button>
@@ -341,8 +393,10 @@ const PaymentForm = ({ onNext, onBack, orderTotal }) => {
             variant="default"
             iconName="ArrowRight"
             iconPosition="right"
+            disabled={!paymentMethod || isLoading}
+            loading={isLoading}
           >
-            Review Order
+            {isLoading ? 'Processing...' : 'Review Order'}
           </Button>
         </div>
       </form>

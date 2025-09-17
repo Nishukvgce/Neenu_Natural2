@@ -1,6 +1,6 @@
 
 import React, { createContext, useContext, useEffect, useState } from 'react'
-import dataService from '../services/dataService'
+// import dataService from '../services/dataService'
 
 const AuthContext = createContext({})
 
@@ -18,43 +18,29 @@ export const AuthProvider = ({ children, setError }) => {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    // Check for existing session in localStorage
-    const checkExistingSession = async () => {
-      try {
-        const sessionData = localStorage.getItem('neenu_auth_session');
-        if (sessionData) {
-          const session = JSON.parse(sessionData);
-          const user = dataService.getUser(session.userId);
-          if (user) {
-            setUser(user);
-            setUserProfile(user);
-          }
-        }
-      } catch (error) {
-        console.error('Error checking session:', error);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    checkExistingSession();
-  }, [])
+    // Check for existing session in localStorage (from backend login)
+    const sessionData = localStorage.getItem('user');
+    if (sessionData) {
+      const user = JSON.parse(sessionData);
+      setUser(user);
+      setUserProfile(user);
+    }
+    setLoading(false);
+  }, []);
 
   const signIn = async (email, password) => {
     try {
       setLoading(true);
-      const user = dataService.authenticate(email, password);
-      
-      if (user) {
+      const res = await fetch('http://localhost:8080/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password })
+      });
+      if (res.ok) {
+        const user = await res.json();
         setUser(user);
         setUserProfile(user);
-        
-        // Save session
-        localStorage.setItem('neenu_auth_session', JSON.stringify({
-          userId: user.id,
-          timestamp: Date.now()
-        }));
-        
+        localStorage.setItem('user', JSON.stringify(user));
         return { user, error: null };
       } else {
         return { user: null, error: { message: 'Invalid credentials' } };
