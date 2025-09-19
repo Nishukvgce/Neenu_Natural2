@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useCart } from '../../contexts/CartContext';
 import { useAuth } from '../../contexts/AuthContext';
-import { sendOrderToWhatsApp } from '../../utils/whatsapp';
+import { sendOrderDetailsToWhatsApp } from '../../utils/whatsapp';
 import dataService from '../../services/dataService';
 import checkoutApi from '../../services/checkoutApi';
 import Header from '../../components/ui/Header';
@@ -324,72 +324,10 @@ const CheckoutProcess = () => {
    */
   const sendOrderToWhatsApp = async (order, reviewData, user, location) => {
     try {
-      const customerName = user?.name || reviewData?.address?.name || 'Unknown Customer';
-      const customerPhone = reviewData?.address?.phone || user?.phone || 'Not provided';
-      const customerEmail = user?.email || 'Not provided';
-      const locationInfo = location ? `Location: ${location.latitude}, ${location.longitude}` : 'Location not available';
-
-      // Format address properly
-      const formatWhatsAppAddress = (addr) => {
-        if (!addr) return 'Address not available';
-        return `${addr.name || ''}
-${addr.street || ''}${addr.landmark ? ', ' + addr.landmark : ''}
-${addr.city || ''}, ${addr.state || ''} - ${addr.pincode || ''}
-Phone: ${addr.phone || ''}`;
-      };
-
-      // Use review data items if available, otherwise use cart items
-      const orderItems = reviewData?.items || cartItems || [];
-      
-      const itemsText = orderItems.length > 0 ? orderItems.map((item, index) => {
-        const itemPrice = parseFloat(item?.price) || 0;
-        const itemQuantity = parseInt(item?.quantity) || 0;
-        const itemTotal = itemPrice * itemQuantity;
-        return `${index + 1}. ${item?.name || 'Unknown Item'}
-   Qty: ${itemQuantity} x ₹${itemPrice.toFixed(2)} = ₹${itemTotal.toFixed(2)}`;
-      }).join('\n\n') : 'No items found';
-
-      // Enhanced order details with better formatting
-      const orderDetails = `🛍️ *NEW ORDER RECEIVED*
-
-📋 *Order ID:* NN${order?.id || 'N/A'}
-👤 *Customer:* ${customerName}
-📞 *Phone:* ${customerPhone}
-📧 *Email:* ${customerEmail}
-
-🛒 *Items Ordered:*
-${itemsText}
-
-📍 *Shipping Address:*
-${formatWhatsAppAddress(reviewData?.address)}
-
-${locationInfo}
-
-💳 *Payment Method:* ${reviewData?.paymentMethod || 'Not specified'}
-🚚 *Delivery Option:* ${reviewData?.deliveryOption || 'Standard'}
-
-💰 *Order Summary:*
-Subtotal: ₹${reviewData?.subtotal?.toFixed(2) || '0.00'}
-Shipping: ₹${reviewData?.shippingFee?.toFixed(2) || '0.00'}
-*Total: ₹${reviewData?.total?.toFixed(2) || '0.00'}*
-
-⏰ *Order Time:* ${new Date().toLocaleString('en-IN')}
-
-🎉 Thank you for your order! We'll process it shortly.`;
-
-      const phone = '917892783668';
-      const whatsappUrl = `https://wa.me/${phone}?text=${encodeURIComponent(orderDetails)}`;
-      
-      // Try to open WhatsApp
-      const opened = window.open(whatsappUrl, '_blank');
-      if (!opened) {
-        console.error('Failed to open WhatsApp. Popup might be blocked.');
-        throw new Error('Please allow popups to send order details to WhatsApp.');
-      }
-
+      await sendOrderDetailsToWhatsApp(order, reviewData, user, location, '917892783668');
     } catch (error) {
       console.error('Failed to send WhatsApp notification:', error);
-      // Don't throw error here as order is already placed successfully
+      // swallow errors to avoid blocking order success
     }
   };
 
