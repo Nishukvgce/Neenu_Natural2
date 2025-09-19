@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import AdminSidebar from './components/AdminSidebar';
@@ -8,7 +7,6 @@ import UserManagement from './components/UserManagement';
 import OrderManagement from './components/OrderManagement';
 import Dashboard from './components/Dashboard';
 import Settings from './components/Settings';
-import dataService from '../../services/dataService';
 
 const AdminPanel = () => {
   const [currentUser, setCurrentUser] = useState(null);
@@ -22,41 +20,16 @@ const AdminPanel = () => {
       const adminUser = JSON.parse(localStorage.getItem('adminUser') || 'null');
       const sessionData = localStorage.getItem('neenu_auth_session');
       
-      let validAdmin = null;
-      
-      // First check adminUser in localStorage
-      if (adminUser && adminUser.role === 'admin') {
-        // Verify this user still exists and has admin role
-        const user = dataService.getUser(adminUser.id);
-        if (user && user.role === 'admin') {
-          validAdmin = adminUser;
-        }
-      }
-      
-      // If no valid admin from adminUser, check session
-      if (!validAdmin && sessionData) {
-        try {
-          const session = JSON.parse(sessionData);
-          const user = dataService.getUser(session.userId);
-          if (user && user.role === 'admin') {
-            validAdmin = user;
-            // Sync adminUser in localStorage
-            localStorage.setItem('adminUser', JSON.stringify(user));
-          }
-        } catch (error) {
-          console.error('Invalid session data:', error);
-        }
-      }
-      
-      // If no valid admin found, redirect to login
-      if (!validAdmin) {
+      // Trust backend-issued session stored at login
+      const isAdmin = (adminUser?.role || '').toLowerCase() === 'admin';
+      if (!isAdmin) {
         localStorage.removeItem('adminUser');
         localStorage.removeItem('neenu_auth_session');
         navigate('/admin-login', { replace: true });
         return false;
       }
       
-      setCurrentUser(validAdmin);
+      setCurrentUser(adminUser);
       return true;
     };
 

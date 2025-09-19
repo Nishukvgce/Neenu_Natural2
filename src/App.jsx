@@ -1,11 +1,9 @@
-
 import React from "react";
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider } from './contexts/AuthContext';
 import { CartProvider } from './contexts/CartContext';
 import ErrorBoundary from './components/ErrorBoundary';
 import ScrollToTop from './components/ScrollToTop';
-import dataService from './services/dataService';
 
 // Import your page components
 import Homepage from './pages/homepage';
@@ -27,14 +25,14 @@ const ProtectedAdminRoute = ({ children }) => {
   
   let isValidAdmin = false;
   
-  if (adminUser && adminUser.role === 'admin') {
-    const user = dataService.getUser(adminUser.id);
-    isValidAdmin = user && user.role === 'admin';
+  // Trust backend-issued admin role persisted at login
+  if (adminUser && (adminUser.role || '').toLowerCase() === 'admin') {
+    isValidAdmin = true;
   } else if (sessionData) {
     try {
       const session = JSON.parse(sessionData);
-      const user = dataService.getUser(session.userId);
-      isValidAdmin = user && user.role === 'admin';
+      // Minimal fallback; main trust is adminUser role
+      isValidAdmin = !!session?.userId;
     } catch (error) {
       console.error('Invalid session data:', error);
     }

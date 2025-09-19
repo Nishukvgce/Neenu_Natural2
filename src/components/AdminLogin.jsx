@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import Button from './ui/Button';
@@ -6,7 +5,7 @@ import Input from './ui/Input';
 
 const AdminLogin = ({ onLoginSuccess }) => {
   const [credentials, setCredentials] = useState({
-    username: '',
+    email: '',
     password: ''
   });
   const [error, setError] = useState('');
@@ -19,7 +18,7 @@ const AdminLogin = ({ onLoginSuccess }) => {
     setError('');
 
     try {
-      const { user, error } = await signIn(credentials.username, credentials.password);
+      const { user, error } = await signIn(credentials.email, credentials.password);
       
       if (error) {
         setError(error.message || 'Login failed');
@@ -56,11 +55,11 @@ const AdminLogin = ({ onLoginSuccess }) => {
         <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
           <div className="space-y-4">
             <Input
-              label="Username"
-              type="text"
-              value={credentials.username}
-              onChange={(e) => handleInputChange('username', e.target.value)}
-              placeholder="Enter admin username"
+              label="Email"
+              type="email"
+              value={credentials.email}
+              onChange={(e) => handleInputChange('email', e.target.value)}
+              placeholder="Enter admin email"
               required
             />
             <Input
@@ -89,7 +88,7 @@ const AdminLogin = ({ onLoginSuccess }) => {
 
           <div className="text-center">
             <p className="text-sm text-gray-600">
-              Demo credentials: admin / admin123
+              Demo credentials: admin@gmail.com / admin123
             </p>
           </div>
         </form>

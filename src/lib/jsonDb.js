@@ -8,14 +8,7 @@ class JsonDatabase {
 
   async loadData() {
     try {
-      // Try to load from backend API first
-      const response = await apiClient.get('/admin/data');
-      this.data = response.data;
-      console.log('Database loaded from backend API');
-    } catch (error) {
-      console.error('Failed to load database from API:', error);
-      
-      // Try to load from localStorage as fallback
+      // Initialize from localStorage first; per-method API calls will fetch live data
       const stored = localStorage.getItem('neenu_natural_db');
       if (stored) {
         this.data = JSON.parse(stored);
@@ -30,6 +23,15 @@ class JsonDatabase {
         };
         console.log('Database initialized with empty structure');
       }
+    } catch (error) {
+      // Fallback initialization on any unexpected error
+      this.data = {
+        users: [],
+        products: [],
+        orders: [],
+        categories: []
+      };
+      console.error('Failed to initialize database, using empty structure:', error);
     }
   }
 
@@ -153,7 +155,7 @@ class JsonDatabase {
   // Orders CRUD
   async getOrders() {
     try {
-      const response = await apiClient.get('/admin/orders');
+      const response = await apiClient.get('/orders/admin');
       return response.data;
     } catch (error) {
       console.error('Error fetching orders from API:', error);
