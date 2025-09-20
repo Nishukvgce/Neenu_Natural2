@@ -1,9 +1,14 @@
 package com.eduprajna.Controller;
 
 import java.io.IOException;
+import java.net.URI;
 import java.util.List;
+import java.util.stream.Collectors;
 
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.core.io.Resource;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -47,7 +52,8 @@ public class ProductController {
             String relativePath = storageService.store(imageFile);
             p.setImageUrl(relativePath);
         }
-        return ResponseEntity.ok(productService.save(p));
+        Product saved = productService.save(p);
+        return ResponseEntity.ok(saved);
     }
 
     @PutMapping("/{id}")
@@ -60,5 +66,27 @@ public class ProductController {
     public ResponseEntity<Void> delete(@PathVariable Long id) {
         productService.delete(id);
         return ResponseEntity.noContent().build();
+    }
+
+    // Serve uploaded images via API so frontend can display them
+    @GetMapping("/images/{filename}")
+    public ResponseEntity<Resource> getImage(@PathVariable String filename) throws IOException {
+        Resource resource = storageService.loadAsResource(filename);
+        MediaType contentType = storageService.probeMediaType(filename);
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CACHE_CONTROL, "max-age=86400, public")
+                .contentType(contentType)
+                .body(resource);
+    }
+
+    // List all stored image filenames (or absolute URLs)
+    @GetMapping("/images")
+    public ResponseEntity<List<String>> listImages() {
+        List<String> files = storageService.listAll();
+        // Convert filenames to API URLs for convenience
+        List<String> urls = files.stream()
+                .map(name -> "/api/admin/products/images/" + name)
+                .collect(Collectors.toList());
+        return ResponseEntity.ok(urls);
     }
 }

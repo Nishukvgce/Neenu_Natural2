@@ -1,8 +1,17 @@
 package com.eduprajna.service;
 
 import java.io.File;
+import java.io.FileInputStream;
 import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.util.ArrayList;
+import java.util.List;
 
+import org.springframework.core.io.InputStreamResource;
+import org.springframework.core.io.Resource;
+import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 import org.springframework.web.multipart.MultipartFile;
@@ -16,9 +25,52 @@ public class StorageService {
         String filename = System.currentTimeMillis() + "_" + StringUtils.cleanPath(file.getOriginalFilename());
         File dir = new File(UPLOAD_DIR);
         if (!dir.exists()) dir.mkdirs();
-        File dest = new File(dir, filename); // <--- FIX: Always use the upload dir!
+        File dest = new File(dir, filename); // <--- Always use the upload dir
         file.transferTo(dest);
-        // Return the relative path for DB
-        return "/uploads/" + filename;
+        // Return an API-served relative path for DB so frontend can fetch via baseURL
+        return "/admin/products/images/" + filename; // served by ProductController
+    }
+
+    public Resource loadAsResource(String filename) throws IOException {
+        Path filePath = Paths.get(UPLOAD_DIR).resolve(filename).normalize();
+        if (!Files.exists(filePath)) {
+            throw new IOException("File not found: " + filename);
+        }
+        return new InputStreamResource(new FileInputStream(filePath.toFile())) {
+            @Override
+            public String getFilename() {
+                return filePath.getFileName().toString();
+            }
+
+            @Override
+            public long contentLength() throws IOException {
+                return Files.size(filePath);
+            }
+        };
+    }
+
+    public MediaType probeMediaType(String filename) {
+        try {
+            Path filePath = Paths.get(UPLOAD_DIR).resolve(filename).normalize();
+            String type = Files.probeContentType(filePath);
+            if (type != null) return MediaType.parseMediaType(type);
+        } catch (Exception ignored) {}
+        return MediaType.APPLICATION_OCTET_STREAM;
+    }
+
+    public List<String> listAll() {
+        List<String> files = new ArrayList<>();
+        File dir = new File(UPLOAD_DIR);
+        if (dir.exists() && dir.isDirectory()) {
+            File[] list = dir.listFiles();
+            if (list != null) {
+                for (File f : list) {
+                    if (f.isFile()) {
+                        files.add(f.getName());
+                    }
+                }
+            }
+        }
+        return files;
     }
 }
