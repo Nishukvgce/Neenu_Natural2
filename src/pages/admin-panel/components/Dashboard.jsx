@@ -1,10 +1,12 @@
-
 import React, { useState, useEffect } from 'react';
 import { 
   Package, Users, ShoppingCart, DollarSign, TrendingUp, TrendingDown, 
   AlertTriangle, Plus, BarChart3, Calendar, Eye, RefreshCw, Download, FileText
 } from 'lucide-react';
 import dataService from '../../../services/dataService';
+import userApi from '../../../services/userApi';
+import orderApi from '../../../services/orderApi';
+import productApi from '../../../services/productApi';
 import { 
   exportToCSV, 
   filterDataByDateRange, 
@@ -59,13 +61,22 @@ const Dashboard = () => {
     try {
       setLoading(true);
       
-      // Get all data
-      const productsResponse = await dataService.getProducts();
-      const users = dataService.getUsers(); // Direct call since it's synchronous
-      const orders = dataService.getOrders(); // Direct call since it's synchronous
-      
-      const products = productsResponse.data || [];
-      const customerUsers = users.filter(u => u.role === 'customer');
+      // Get all data from backend APIs
+      const [productsResponse, usersResponse, ordersResponse, orderStats] = await Promise.all([
+        dataService.getProducts(),
+        // Users endpoint returns non-admin users from backend
+        userApi.getAll().catch(() => []),
+        // Orders endpoint returns list of orders (DTOs)
+        orderApi.getAllOrders().catch(() => []),
+        // Optional: order statistics for authoritative totals
+        orderApi.getOrderStatistics().catch(() => null)
+      ]);
+
+      const products = productsResponse?.data || [];
+      const users = Array.isArray(usersResponse) ? usersResponse : (usersResponse?.data || []);
+      const orders = Array.isArray(ordersResponse) ? ordersResponse : (ordersResponse?.data || []);
+      // Backend already returns non-admin users from /api/admin/users
+      const customerUsers = users;
       
       // Store raw data for CSV export
       setRawData({
@@ -75,7 +86,10 @@ const Dashboard = () => {
       });
       
       // Calculate revenue metrics
-      const totalRevenue = orders.reduce((sum, order) => sum + (order.total || 0), 0);
+      const computedTotalRevenue = orders.reduce((sum, order) => sum + (order.total || 0), 0);
+      const totalRevenue = (orderStats && typeof orderStats.totalRevenue === 'number')
+        ? orderStats.totalRevenue
+        : computedTotalRevenue;
       const averageOrderValue = orders.length > 0 ? totalRevenue / orders.length : 0;
       
       // Calculate date-based metrics
@@ -96,12 +110,22 @@ const Dashboard = () => {
       const monthlyRevenue = monthlyOrders.reduce((sum, order) => sum + (order.total || 0), 0);
       
       // Order status counts
-      const pendingOrders = orders.filter(order => order.status === 'pending').length;
-      const completedOrders = orders.filter(order => order.status === 'delivered' || order.status === 'completed').length;
+      const pendingOrders = (orderStats && typeof orderStats.pendingOrders === 'number')
+        ? orderStats.pendingOrders
+        : orders.filter(order => (order.status || '').toLowerCase() === 'pending').length;
+      const deliveredCount = (orderStats && typeof orderStats.deliveredOrders === 'number')
+        ? orderStats.deliveredOrders
+        : orders.filter(order => (order.status || '').toLowerCase() === 'delivered').length;
+      const completedOrders = Math.max(deliveredCount, orders.filter(order => {
+        const st = (order.status || '').toLowerCase();
+        return st === 'delivered' || st === 'completed';
+      }).length);
       
       // Product analytics
       const lowStockProducts = products.filter(p => (p.stockQuantity || 0) < 10);
-      const recentOrders = orders.slice(-5).reverse();
+      const recentOrders = [...orders]
+        .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
+        .slice(0, 5);
       
       // Top selling products (based on order frequency)
       const productSales = {};
@@ -127,8 +151,9 @@ const Dashboard = () => {
       
       setStats({
         totalProducts: products.length,
-        totalUsers: customerUsers.length,
-        totalOrders: orders.length,
+        // Customers are the non-admin users returned by backend
+        totalUsers: users.length,
+        totalOrders: (orderStats && typeof orderStats.totalOrders === 'number') ? orderStats.totalOrders : orders.length,
         totalRevenue,
         monthlyRevenue,
         weeklyOrders: weeklyOrders.length,
@@ -165,18 +190,22 @@ const Dashboard = () => {
     const restockAmount = prompt('Enter quantity to add to stock:');
     if (restockAmount && !isNaN(restockAmount) && parseInt(restockAmount) > 0) {
       try {
-        const products = await dataService.getProducts();
-        const product = products.data.find(p => p.id === productId);
-        if (product) {
-          const newStock = (product.stockQuantity || 0) + parseInt(restockAmount);
-          // In a real app, you'd call dataService.updateProduct
-          // For now, we'll just update the local data and show success
-          product.stockQuantity = newStock;
-          product.inStock = newStock > 0;
-          
-          await loadDashboardData(); // Refresh data
-          alert(`Stock updated! ${product.name} now has ${newStock} items in stock.`);
+        // Load current product details from backend
+        const productsRes = await dataService.getProducts();
+        const product = (productsRes?.data || []).find(p => p.id === productId);
+        if (!product) {
+          alert('Product not found. Please refresh and try again.');
+          return;
         }
+
+        const newStock = (product.stockQuantity || 0) + parseInt(restockAmount, 10);
+        const payload = { ...product, stockQuantity: newStock, inStock: newStock > 0 };
+
+        // Persist to backend
+        await productApi.update(productId, payload);
+
+        await loadDashboardData(); // Refresh data from backend
+        alert(`Stock updated! ${product.name} now has ${newStock} items in stock.`);
       } catch (error) {
         console.error('Error updating stock:', error);
         alert('Failed to update stock. Please try again.');

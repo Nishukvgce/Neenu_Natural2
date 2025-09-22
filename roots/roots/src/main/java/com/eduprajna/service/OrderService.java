@@ -22,13 +22,16 @@ public class OrderService {
     private final CartItemRepository cartRepo;
     private final CheckoutSelectionRepository selectionRepo;
     private final AddressRepository addressRepo;
+    private final com.eduprajna.repository.ProductRepository productRepo;
 
     public OrderService(OrderRepository orderRepo, CartItemRepository cartRepo, 
-                       CheckoutSelectionRepository selectionRepo, AddressRepository addressRepo) {
+                       CheckoutSelectionRepository selectionRepo, AddressRepository addressRepo,
+                       com.eduprajna.repository.ProductRepository productRepo) {
         this.orderRepo = orderRepo;
         this.cartRepo = cartRepo;
         this.selectionRepo = selectionRepo;
         this.addressRepo = addressRepo;
+        this.productRepo = productRepo;
     }
 
     /**
@@ -46,6 +49,19 @@ public class OrderService {
             throw new IllegalStateException("Cart is empty");
         }
         logger.debug("Found {} items in cart for user: {}", cart.size(), user.getEmail());
+        
+        // 1b. Validate stock availability for all items before proceeding
+        for (CartItem ci : cart) {
+            Product product = ci.getProduct();
+            int available = product.getStockQuantity() != null ? product.getStockQuantity() : 0;
+            int qty = ci.getQuantity() != null ? ci.getQuantity() : 0;
+            if (qty <= 0) {
+                throw new IllegalStateException("Invalid quantity for product: " + product.getName());
+            }
+            if (available < qty) {
+                throw new IllegalStateException("Insufficient stock for product: " + product.getName());
+            }
+        }
         
         // 2. Get checkout selection
         CheckoutSelection selection = selectionRepo.findByUser(user)
@@ -91,6 +107,15 @@ public class OrderService {
             orderItem.setProduct(cartItem.getProduct());
             orderItem.setQuantity(cartItem.getQuantity());
             orderItem.setPrice(cartItem.getPriceAtAdd());
+            
+            // Decrement stock for the purchased product
+            Product product = cartItem.getProduct();
+            int available = product.getStockQuantity() != null ? product.getStockQuantity() : 0;
+            int qty = cartItem.getQuantity() != null ? cartItem.getQuantity() : 0;
+            int newQty = Math.max(available - qty, 0);
+            product.setStockQuantity(newQty);
+            product.setInStock(newQty > 0);
+            productRepo.save(product);
             return orderItem;
         }).collect(Collectors.toList());
         order.setItems(orderItems);
@@ -191,5 +216,3 @@ public class OrderService {
         return stats;
     }
 }
-
-
