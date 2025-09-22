@@ -73,6 +73,8 @@ const ProductCollectionGrid = () => {
           bestseller: Boolean(p?.bestseller),
           image: p?.image || p?.imageUrl || p?.image_path || p?.thumbnailUrl,
           description: p?.description || '',
+          // Include stock fields when present; treat missing as unlimited
+          stockQuantity: p?.stockQuantity ?? null,
           inStock: p?.inStock !== false, // Default to true if not specified
           weight: p?.weight || 'N/A'
         }));

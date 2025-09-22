@@ -7,6 +7,10 @@ const ProductInfo = ({ product, onAddToCart, onAddToWishlist, isInWishlist }) =>
   const [selectedVariant, setSelectedVariant] = useState(product?.variants?.[0]);
   const [quantity, setQuantity] = useState(1);
 
+  // Determine available stock from variant or product
+  const availableStock = (selectedVariant?.stock ?? product?.stockQuantity ?? 0) || 0;
+  const inStock = (selectedVariant?.stock ?? product?.stockQuantity ?? 0) > 0 && (product?.inStock ?? true);
+
   const handleVariantChange = (variantId) => {
     const variant = product?.variants?.find(v => v?.id === variantId);
     setSelectedVariant(variant);
@@ -14,14 +18,33 @@ const ProductInfo = ({ product, onAddToCart, onAddToWishlist, isInWishlist }) =>
 
   const handleQuantityChange = (change) => {
     const newQuantity = quantity + change;
-    if (newQuantity >= 1 && newQuantity <= 10) {
+    // Cap quantity between 1 and available stock
+    if (newQuantity >= 1 && newQuantity <= Math.max(availableStock, 0)) {
       setQuantity(newQuantity);
+    } else if (newQuantity > availableStock) {
+      alert('Stock limit exceeded');
+      setQuantity(Math.max(availableStock, 1));
     }
   };
 
   const handleAddToCart = () => {
+    if (!inStock || availableStock <= 0) {
+      alert('This product is out of stock');
+      return;
+    }
+    if (quantity > availableStock) {
+      alert('Stock limit exceeded');
+      return;
+    }
+    // Provide enough info for both logged-in (server) and guest (local) carts
     onAddToCart({
+      id: product?.id,
       productId: product?.id,
+      name: product?.name,
+      price: selectedVariant?.price ?? product?.price,
+      originalPrice: selectedVariant?.originalPrice ?? product?.originalPrice ?? (selectedVariant?.price ?? product?.price),
+      image: product?.imageUrl || product?.image,
+      stockQuantity: availableStock,
       variantId: selectedVariant?.id,
       quantity: quantity
     });
@@ -106,7 +129,7 @@ const ProductInfo = ({ product, onAddToCart, onAddToWishlist, isInWishlist }) =>
             </span>
             <button
               onClick={() => handleQuantityChange(1)}
-              disabled={quantity >= 10}
+              disabled={quantity >= availableStock}
               className="w-10 h-10 flex items-center justify-center hover:bg-muted disabled:opacity-50 disabled:cursor-not-allowed transition-colors duration-200"
             >
               <Icon name="Plus" size={16} />
@@ -121,6 +144,7 @@ const ProductInfo = ({ product, onAddToCart, onAddToWishlist, isInWishlist }) =>
             iconName="ShoppingCart"
             iconPosition="left"
             className="flex-1"
+            disabled={!inStock}
           >
             Add to Cart
           </Button>
@@ -136,10 +160,16 @@ const ProductInfo = ({ product, onAddToCart, onAddToWishlist, isInWishlist }) =>
       </div>
       {/* Stock Status */}
       <div className="flex items-center gap-2">
-        <div className="w-2 h-2 bg-success rounded-full"></div>
-        <span className="font-caption text-sm text-success font-medium">
-          In Stock ({selectedVariant?.stock} units available)
-        </span>
+        <div className={`w-2 h-2 rounded-full ${inStock ? 'bg-success' : 'bg-destructive'}`}></div>
+        {inStock ? (
+          <span className="font-caption text-sm text-success font-medium">
+            In Stock ({availableStock} units available)
+          </span>
+        ) : (
+          <span className="font-caption text-sm text-destructive font-medium">
+            Out of Stock
+          </span>
+        )}
       </div>
     </div>
   );

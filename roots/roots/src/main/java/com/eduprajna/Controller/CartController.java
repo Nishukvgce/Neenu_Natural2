@@ -105,6 +105,12 @@ public class CartController {
             
             logger.info("Added product {} to cart for user: {}", productId, email);
             return ResponseEntity.ok(toDTO(ci));
+        } catch (IllegalArgumentException e) {
+            logger.warn("Bad request while adding to cart: {}", e.getMessage());
+            return ResponseEntity.badRequest().body(e.getMessage());
+        } catch (IllegalStateException e) {
+            logger.warn("Validation failed while adding to cart: {}", e.getMessage());
+            return ResponseEntity.badRequest().body(e.getMessage());
         } catch (RuntimeException e) {
             logger.error("Error adding to cart for user: {}", email, e);
             return ResponseEntity.status(404).body("User or product not found");
@@ -135,6 +141,12 @@ public class CartController {
             
             logger.info("Updated cart item quantity for product {} for user: {}", productId, email);
             return ResponseEntity.ok(toDTO(ci));
+        } catch (IllegalArgumentException e) {
+            logger.warn("Bad request while updating cart: {}", e.getMessage());
+            return ResponseEntity.badRequest().body(e.getMessage());
+        } catch (IllegalStateException e) {
+            logger.warn("Validation failed while updating cart: {}", e.getMessage());
+            return ResponseEntity.badRequest().body(e.getMessage());
         } catch (RuntimeException e) {
             logger.error("Error updating cart for user: {}", email, e);
             return ResponseEntity.status(404).body("User, product, or cart item not found");

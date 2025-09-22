@@ -1,4 +1,3 @@
-
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { useAuth } from './AuthContext';
 import cartApi from '../services/cartApi';
@@ -106,6 +105,19 @@ export const CartProvider = ({ children }) => {
       quantity: parseInt(quantity) || 1
     };
 
+    // Optional client-side stock checks if stock info is provided on product
+    const availableStock = (sanitizedProduct.stock ?? sanitizedProduct.stockQuantity ?? null);
+    if (availableStock !== null) {
+      if (parseInt(availableStock) <= 0) {
+        showNotification('This product is out of stock', 'error');
+        return;
+      }
+      if (sanitizedProduct.quantity > parseInt(availableStock)) {
+        showNotification('Stock limit exceeded', 'error');
+        sanitizedProduct.quantity = parseInt(availableStock);
+      }
+    }
+
     if (user?.email) {
       try {
         const apiResponse = await cartApi.add(user.email, { productId: sanitizedProduct.productId || sanitizedProduct.id, quantity: sanitizedProduct.quantity });
@@ -142,36 +154,33 @@ export const CartProvider = ({ children }) => {
           }
         });
       } catch (error) {
-        // Fallback to local cart if API fails
-        setCartItems(prev => {
-          const existingItem = prev.find(item => item.id === sanitizedProduct.id);
-          if (existingItem) {
-            showNotification(`Updated ${sanitizedProduct.name} quantity in cart!`);
-            return prev.map(item =>
-              item.id === sanitizedProduct.id
-                ? { ...item, quantity: (parseInt(item.quantity) || 0) + (parseInt(quantity) || 1) }
-                : item
-            );
-          } else {
-            showNotification(`${sanitizedProduct.name} added to cart!`);
-            return [...prev, sanitizedProduct];
-          }
-        });
+        // Do not fallback to local cart; show error notification
+        showNotification(error?.message || 'Failed to add to cart. Please try again.', 'error');
+        return;
       }
     } else {
       // Guest user - use local cart
       setCartItems(prev => {
         const existingItem = prev.find(item => item.id === sanitizedProduct.id);
+        // Enforce stock caps if available
+        const currentQty = existingItem ? (parseInt(existingItem.quantity) || 0) : 0;
+        const requestedQty = (parseInt(quantity) || 1);
+        let newQty = currentQty + requestedQty;
+        if (availableStock !== null && newQty > parseInt(availableStock)) {
+          showNotification('Stock limit exceeded', 'error');
+          newQty = parseInt(availableStock);
+        }
+
         if (existingItem) {
           showNotification(`Updated ${sanitizedProduct.name} quantity in cart!`);
           return prev.map(item =>
             item.id === sanitizedProduct.id
-              ? { ...item, quantity: (parseInt(item.quantity) || 0) + (parseInt(quantity) || 1) }
+              ? { ...item, quantity: newQty }
               : item
           );
         } else {
           showNotification(`${sanitizedProduct.name} added to cart!`);
-          return [...prev, sanitizedProduct];
+          return [...prev, { ...sanitizedProduct, quantity: Math.max(1, Math.min(requestedQty, availableStock ?? requestedQty)) }];
         }
       });
     }

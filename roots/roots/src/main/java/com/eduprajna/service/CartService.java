@@ -26,6 +26,17 @@ public class CartService {
 
     public CartItem addToCart(User user, Long productId, int quantity) {
         Product product = productRepo.findById(productId).orElseThrow();
+        Integer stockQty = product.getStockQuantity();
+        boolean explicitlyOutOfStock = product.getInStock() != null && !product.getInStock();
+        if (explicitlyOutOfStock) {
+            throw new IllegalStateException("Product is out of stock");
+        }
+        if (stockQty != null && stockQty <= 0) {
+            throw new IllegalStateException("Product is out of stock");
+        }
+        if (quantity <= 0) {
+            throw new IllegalArgumentException("Quantity must be at least 1");
+        }
         Optional<CartItem> existing = cartRepo.findByUserAndProduct(user, product);
         CartItem item = existing.orElseGet(() -> {
             CartItem ci = new CartItem();
@@ -35,14 +46,33 @@ public class CartService {
             ci.setQuantity(0);
             return ci;
         });
-        item.setQuantity(Math.max(1, (item.getQuantity() == null ? 0 : item.getQuantity()) + quantity));
+        int current = item.getQuantity() == null ? 0 : item.getQuantity();
+        int newQty = current + quantity;
+        if (stockQty != null && newQty > stockQty) {
+            throw new IllegalStateException("Stock limit exceeded. Available: " + stockQty);
+        }
+        item.setQuantity(Math.max(1, newQty));
         return cartRepo.save(item);
     }
 
     public CartItem updateQuantity(User user, Long productId, int quantity) {
         Product product = productRepo.findById(productId).orElseThrow();
         CartItem item = cartRepo.findByUserAndProduct(user, product).orElseThrow();
-        item.setQuantity(Math.max(1, quantity));
+        Integer stockQty = product.getStockQuantity();
+        boolean explicitlyOutOfStock = product.getInStock() != null && !product.getInStock();
+        if (explicitlyOutOfStock) {
+            throw new IllegalStateException("Product is out of stock");
+        }
+        if (stockQty != null && stockQty <= 0) {
+            throw new IllegalStateException("Product is out of stock");
+        }
+        if (quantity <= 0) {
+            throw new IllegalArgumentException("Quantity must be at least 1");
+        }
+        if (stockQty != null && quantity > stockQty) {
+            throw new IllegalStateException("Stock limit exceeded. Available: " + stockQty);
+        }
+        item.setQuantity(quantity);
         return cartRepo.save(item);
     }
 
@@ -55,5 +85,3 @@ public class CartService {
         cartRepo.deleteByUser(user);
     }
 }
-
-

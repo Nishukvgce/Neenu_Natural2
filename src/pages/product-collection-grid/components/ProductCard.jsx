@@ -14,6 +14,12 @@ const ProductCard = ({
   const [isImageLoading, setIsImageLoading] = useState(true);
   const [selectedVariant, setSelectedVariant] = useState(product?.variants?.[0] || null);
 
+  // Stock handling
+  const rawStock = (selectedVariant?.stock ?? product?.stockQuantity);
+  const hasExplicitStock = rawStock !== undefined && rawStock !== null;
+  const availableStock = hasExplicitStock ? Math.max(0, parseInt(rawStock, 10) || 0) : Number.POSITIVE_INFINITY;
+  const inStock = (product?.inStock !== false) && (hasExplicitStock ? availableStock > 0 : true);
+
   const calculateSavings = (originalPrice, salePrice) => {
     if (!originalPrice || !salePrice || originalPrice <= salePrice) return 0;
     return Math.round(((originalPrice - salePrice) / originalPrice) * 100);
@@ -53,6 +59,10 @@ const ProductCard = ({
   // Handle Add to Cart for products with variants
   const handleAddToCart = (e) => {
     e.stopPropagation();
+    if (!inStock || availableStock <= 0) {
+      alert('This product is out of stock');
+      return;
+    }
     const cartItem = {
       id: `${product.id}-default`,
       productId: product.id,
@@ -62,7 +72,9 @@ const ProductCard = ({
       image: product.image,
       variant: 'Default',
       category: product.category,
-      brand: product.brand
+      brand: product.brand,
+      // Pass stock info when known so guest cart can enforce caps
+      ...(hasExplicitStock ? { stockQuantity: availableStock } : {})
     };
     onAddToCart(cartItem, 1); // Assuming addToCart is passed as a prop
     console.log('Added to cart:', cartItem);
@@ -72,6 +84,10 @@ const ProductCard = ({
   const handleAddToCartWithVariant = (e) => {
     e.stopPropagation();
     if (!selectedVariant) return; // Ensure a variant is selected
+    if (!inStock || availableStock <= 0) {
+      alert('This product is out of stock');
+      return;
+    }
 
     const cartItem = {
       id: `${product.id}-${selectedVariant.id}`, // Unique ID for each variant
@@ -82,12 +98,12 @@ const ProductCard = ({
       image: product.image, // Consider if variants have different images
       variant: selectedVariant.weight, // Displaying weight as variant
       category: product.category,
-      brand: product.brand
+      brand: product.brand,
+      ...(hasExplicitStock ? { stockQuantity: availableStock } : {})
     };
     onAddToCart(cartItem, 1); // Assuming addToCart is passed as a prop
     console.log('Added to cart:', cartItem);
   };
-
 
   return (
     <div className="group bg-card rounded-lg border border-border hover:shadow-warm-md transition-all duration-300 overflow-hidden">
@@ -223,11 +239,12 @@ const ProductCard = ({
           variant="default"
           fullWidth
           onClick={selectedVariant ? handleAddToCartWithVariant : handleAddToCart}
+          disabled={!inStock}
           iconName="ShoppingCart"
           iconPosition="left"
           iconSize={16}
         >
-          Add to Cart
+          {inStock ? 'Add to Cart' : 'Out of Stock'}
         </Button>
       </div>
     </div>
