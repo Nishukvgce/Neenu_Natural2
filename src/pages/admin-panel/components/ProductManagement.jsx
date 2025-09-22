@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Plus, Edit, Trash2, Search, Filter } from 'lucide-react';
 import dataService from '../../../services/dataService';
 import productApi from '../../../services/productApi';
+import apiClient from '../../../services/api';
 import { Button } from '../../../components/ui/Button';
 import { Input } from '../../../components/ui/Input';
 import ProductForm from './ProductForm';
@@ -13,6 +14,19 @@ const ProductManagement = () => {
   const [showProductForm, setShowProductForm] = useState(false);
   const [editingProduct, setEditingProduct] = useState(null);
   const [loading, setLoading] = useState(true);
+
+  // Helper: resolve image URL coming from backend (relative like "/admin/products/images/xxx.jpg")
+  const resolveImageUrl = (p) => {
+    const candidate = p?.imageUrl || p?.image || p?.image_path || p?.thumbnailUrl;
+    if (!candidate) return '/assets/images/no_image.png';
+    if (candidate.startsWith('http://') || candidate.startsWith('https://') || candidate.startsWith('data:')) {
+      return candidate;
+    }
+    const base = apiClient?.defaults?.baseURL || '';
+    // Ensure single slash between base and path
+    if (candidate.startsWith('/')) return `${base}${candidate}`;
+    return `${base}/${candidate}`;
+  };
 
   useEffect(() => {
     loadProducts();
@@ -47,7 +61,7 @@ const ProductManagement = () => {
         price: p?.price ?? p?.salePrice ?? p?.mrp ?? 0,
         originalPrice: p?.originalPrice ?? p?.mrp ?? p?.price ?? 0,
         rating: p?.rating ?? p?.ratingValue ?? 0,
-        image: p?.image || p?.imageUrl || p?.image_path || p?.thumbnailUrl || '/assets/images/no_image.png',
+        image: resolveImageUrl(p),
         description: p?.description || 'No description available',
         inStock: p?.inStock !== false, // Default to true if not specified
         weight: p?.weight || 'N/A',

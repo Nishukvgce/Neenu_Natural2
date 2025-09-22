@@ -64,6 +64,18 @@ public class ProductController {
 
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> delete(@PathVariable Long id) {
+        // Load product to get image URL before deleting DB row
+        try {
+            Product existing = productService.getById(id);
+            if (existing != null && existing.getImageUrl() != null) {
+                String filename = storageService.extractFilenameFromUrl(existing.getImageUrl());
+                if (filename != null) {
+                    storageService.delete(filename);
+                }
+            }
+        } catch (Exception ignored) {
+            // Ignore errors during image deletion; proceed to delete DB row
+        }
         productService.delete(id);
         return ResponseEntity.noContent().build();
     }

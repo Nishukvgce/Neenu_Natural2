@@ -25,7 +25,7 @@ public class StorageService {
         String filename = System.currentTimeMillis() + "_" + StringUtils.cleanPath(file.getOriginalFilename());
         File dir = new File(UPLOAD_DIR);
         if (!dir.exists()) dir.mkdirs();
-        File dest = new File(dir, filename); // <--- Always use the upload dir
+        File dest = new File(dir, filename); // Always use the upload dir
         file.transferTo(dest);
         // Return an API-served relative path for DB so frontend can fetch via baseURL
         return "/admin/products/images/" + filename; // served by ProductController
@@ -72,5 +72,21 @@ public class StorageService {
             }
         }
         return files;
+    }
+
+    // Delete a stored file by its filename, returns true if deleted or not present
+    public boolean delete(String filename) {
+        if (filename == null || filename.isEmpty()) return false;
+        File f = Paths.get(UPLOAD_DIR).resolve(filename).normalize().toFile();
+        if (!f.exists()) return true; // already gone
+        return f.delete();
+    }
+
+    // Extracts filename from an API url like "/api/admin/products/images/abc.jpg"
+    public String extractFilenameFromUrl(String url) {
+        if (url == null) return null;
+        int idx = url.lastIndexOf('/') + 1;
+        if (idx <= 0 || idx >= url.length()) return null;
+        return url.substring(idx);
     }
 }

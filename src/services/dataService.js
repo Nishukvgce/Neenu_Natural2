@@ -126,6 +126,23 @@ const dataService = {
     }
   },
 
+  // Delete a product in backend (also deletes its image file server-side)
+  async deleteProduct(productId) {
+    try {
+      const res = await fetch(`http://localhost:8080/api/admin/products/${productId}`, {
+        method: 'DELETE',
+      });
+      if (!res.ok && res.status !== 204) {
+        const error = await res.text();
+        throw new Error(error || 'Failed to delete product');
+      }
+      return true;
+    } catch (error) {
+      console.error('Error deleting product:', error);
+      throw error;
+    }
+  },
+
   // Authentication methods
   authenticate(emailOrUsername, password) {
     console.log('Authenticating user:', emailOrUsername);
