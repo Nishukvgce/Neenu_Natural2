@@ -12,11 +12,10 @@ import Button from '../../components/ui/Button';
 import dataService from '../../services/dataService';
 import productApi from '../../services/productApi';
 
-
 const ProductCollectionGrid = () => {
   const location = useLocation();
   const [searchParams] = useSearchParams();
-  const { addToCart, getCartItemCount, cartItems } = useCart();
+  const { addToCart, getCartItemCount, cartItems, addToWishlist, removeFromWishlist, isInWishlist, wishlistItems: wishlistState } = useCart();
 
   // State management
   const [products, setProducts] = useState([]);
@@ -26,9 +25,11 @@ const ProductCollectionGrid = () => {
   const [quickViewProduct, setQuickViewProduct] = useState(null);
   const [isQuickViewOpen, setIsQuickViewOpen] = useState(false);
   const [currentSort, setCurrentSort] = useState('best-selling');
-  const [wishlistItems, setWishlistItems] = useState([]);
   const [currentPage, setCurrentPage] = useState(1);
   const [hasMoreProducts, setHasMoreProducts] = useState(true);
+
+  // Derive wishlist ids from CartContext to drive heart fill state
+  const wishlistItems = (wishlistState || []).map(w => w.id);
 
   // Filter state
   const [filters, setFilters] = useState({
@@ -233,13 +234,23 @@ const ProductCollectionGrid = () => {
     console.log('Added to cart:', productToAdd);
   };
 
-  const handleAddToWishlist = (productId) => {
-    setWishlistItems(prev => {
-      if (prev?.includes(productId)) {
-        return prev?.filter(id => id !== productId);
-      }
-      return [...prev, productId];
-    });
+  const handleAddToWishlist = (productOrId) => {
+    const product = typeof productOrId === 'object' ? productOrId : products.find(p => p.id === productOrId);
+    if (!product) return;
+    if (isInWishlist(product.id)) {
+      removeFromWishlist(product.id);
+    } else {
+      addToWishlist({
+        id: product.id,
+        name: product.name,
+        image: product.image,
+        price: product.price,
+        originalPrice: product.originalPrice,
+        // pass stock info when available
+        ...(product.stockQuantity !== undefined ? { stockQuantity: product.stockQuantity } : {}),
+        ...(product.inStock !== undefined ? { inStock: product.inStock } : {})
+      });
+    }
   };
 
   const breadcrumbItems = [

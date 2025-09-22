@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { useAuth } from './AuthContext';
 import cartApi from '../services/cartApi';
+import wishlistApi from '../services/wishlistApi';
 
 const CartContext = createContext({});
 
@@ -95,6 +96,33 @@ export const CartProvider = ({ children }) => {
   useEffect(() => {
     localStorage.setItem('neenu_wishlist', JSON.stringify(wishlistItems));
   }, [wishlistItems]);
+
+  // Load wishlist from backend for logged-in users
+  useEffect(() => {
+    const loadWishlist = async () => {
+      if (!user?.email) return;
+      try {
+        const items = await wishlistApi.getAll(user.email);
+        // Normalize to UI item shape
+        const normalized = (items || []).map(it => ({
+          id: it.productId,
+          name: it.productName,
+          image: it.productImage,
+          price: it.productPrice,
+          originalPrice: it.productPrice,
+          inStock: it.inStock !== false,
+          stockQuantity: it.stockQuantity ?? null,
+          category: it.category,
+          brand: it.brand,
+          addedDate: it.createdAt
+        }));
+        setWishlistItems(normalized);
+      } catch (e) {
+        // keep local storage fallback silently
+      }
+    };
+    loadWishlist();
+  }, [user?.email]);
 
   const addToCart = async (product, quantity = 1) => {
     // Ensure price is a valid number
@@ -242,20 +270,37 @@ export const CartProvider = ({ children }) => {
     return cartItems.reduce((count, item) => count + (parseInt(item.quantity) || 0), 0);
   };
 
-  const addToWishlist = (product) => {
-    setWishlistItems(prev => {
-      const existingItem = prev.find(item => item.id === product.id);
-      if (existingItem) {
-        showNotification(`${product.name} is already in wishlist!`, 'error');
-        return prev;
-      } else {
+  const addToWishlist = async (product) => {
+    // Avoid dups in UI
+    const already = wishlistItems.some(w => w.id === product.id);
+    if (already) {
+      showNotification(`${product.name} is already in wishlist!`, 'error');
+      return;
+    }
+    if (user?.email) {
+      try {
+        await wishlistApi.add(user.email, { productId: product.id });
         showNotification(`${product.name} added to wishlist!`);
-        return [...prev, product];
+        setWishlistItems(prev => [...prev, { inStock: true, ...product }]);
+        return;
+      } catch (e) {
+        showNotification(e?.message || 'Failed to add to wishlist', 'error');
+        return;
       }
-    });
+    }
+    // Guest fallback to local storage
+    showNotification(`${product.name} added to wishlist!`);
+    setWishlistItems(prev => [...prev, { inStock: true, ...product }]);
   };
 
-  const removeFromWishlist = (productId) => {
+  const removeFromWishlist = async (productId) => {
+    if (user?.email) {
+      try {
+        await wishlistApi.remove(user.email, { productId });
+      } catch (e) {
+        showNotification(e?.message || 'Failed to remove from wishlist', 'error');
+      }
+    }
     setWishlistItems(prev => {
       const product = prev.find(item => item.id === productId);
       if (product) {

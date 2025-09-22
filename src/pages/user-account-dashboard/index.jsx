@@ -5,6 +5,7 @@ import { useCart } from '../../contexts/CartContext';
 import dataService from '../../services/dataService';
 import userApi from '../../services/userApi';
 import orderApi from '../../services/orderApi';
+import wishlistApi from '../../services/wishlistApi';
 import Header from '../../components/ui/Header';
 import DashboardSidebar from './components/DashboardSidebar';
 import DashboardOverview from './components/DashboardOverview';
@@ -143,43 +144,23 @@ const UserAccountDashboard = () => {
         
         console.log('Fetching wishlist for user:', authUser.email);
         
-        // Try to fetch from wishlist API
-        const response = await fetch(`http://localhost:8080/api/wishlist`, {
-          method: 'GET',
-          headers: {
-            'Content-Type': 'application/json',
-            'X-User-Email': authUser.email
-          }
-        });
-
-        if (response.ok) {
-          const wishlistData = await response.json();
-          console.log('Successfully fetched wishlist:', wishlistData.length, 'items');
-          
-          // Transform API data to match frontend expectations
-          const transformedWishlist = wishlistData.map(item => ({
-            id: item.productId || item.id,
-            name: item.productName || item.name,
-            price: item.productPrice || item.price || 0,
-            originalPrice: item.originalPrice || item.productPrice || item.price || 0,
-            image: item.productImage || item.image || "https://images.unsplash.com/photo-1586201375761-83865001e31c?w=400&h=400&fit=crop",
-            variants: item.variants || ["Default"],
-            selectedVariant: item.selectedVariant || "Default",
-            inStock: item.inStock !== false,
-            rating: item.rating || 4.5,
-            reviewCount: item.reviewCount || 0,
-            badges: item.badges || [],
-            addedDate: item.createdAt || item.addedDate || new Date().toISOString()
-          }));
-          
-          setWishlistItems(transformedWishlist);
-        } else if (response.status === 404) {
-          // No wishlist found - normal for new users
-          console.log('No wishlist found for user, using empty array');
-          setWishlistItems([]);
-        } else {
-          throw new Error(`Failed to fetch wishlist: ${response.status}`);
-        }
+        const wishlistData = await wishlistApi.getAll(authUser.email);
+        // Transform API data to match frontend expectations
+        const transformedWishlist = (wishlistData || []).map(item => ({
+          id: item.productId || item.id,
+          name: item.productName || item.name,
+          price: item.productPrice || item.price || 0,
+          originalPrice: item.originalPrice || item.productPrice || item.price || 0,
+          image: item.productImage || item.image || "https://images.unsplash.com/photo-1586201375761-83865001e31c?w=400&h=400&fit=crop",
+          variants: item.variants || ["Default"],
+          selectedVariant: item.selectedVariant || "Default",
+          inStock: item.inStock !== false,
+          rating: item.rating || 4.5,
+          reviewCount: item.reviewCount || 0,
+          badges: item.badges || [],
+          addedDate: item.createdAt || item.addedDate || new Date().toISOString()
+        }));
+        setWishlistItems(transformedWishlist);
       } catch (error) {
         console.error('Error fetching wishlist:', error);
         setWishlistError(error.message);
@@ -214,29 +195,17 @@ const UserAccountDashboard = () => {
 
     try {
       console.log('Removing product from wishlist:', productId);
+      await wishlistApi.remove(authUser.email, { productId });
+      // Remove from local state
+      setWishlistItems(prev => prev.filter(item => item.id !== productId));
+      console.log('Successfully removed from wishlist');
       
-      const response = await fetch(`http://localhost:8080/api/wishlist/${productId}`, {
-        method: 'DELETE',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-User-Email': authUser.email
-        }
-      });
-
-      if (response.ok) {
-        // Remove from local state
-        setWishlistItems(prev => prev.filter(item => item.id !== productId));
-        console.log('Successfully removed from wishlist');
-        
-        // Show success notification
-        const notification = document.createElement('div');
-        notification.className = 'fixed top-4 right-4 z-50 p-4 rounded-lg shadow-lg max-w-sm bg-green-500 text-white';
-        notification.innerHTML = '<div class="flex items-center gap-2"><span>Removed from wishlist!</span></div>';
-        document.body.appendChild(notification);
-        setTimeout(() => notification.remove(), 3000);
-      } else {
-        throw new Error('Failed to remove from wishlist');
-      }
+      // Show success notification
+      const notification = document.createElement('div');
+      notification.className = 'fixed top-4 right-4 z-50 p-4 rounded-lg shadow-lg max-w-sm bg-green-500 text-white';
+      notification.innerHTML = '<div class="flex items-center gap-2"><span>Removed from wishlist!</span></div>';
+      document.body.appendChild(notification);
+      setTimeout(() => notification.remove(), 3000);
     } catch (error) {
       console.error('Error removing from wishlist:', error);
       
