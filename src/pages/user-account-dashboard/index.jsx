@@ -438,6 +438,7 @@ const UserAccountDashboard = () => {
             user={user}
             recentOrders={recentOrders}
             loyaltyPoints={loyaltyPoints}
+            wishlistCount={wishlistCount}
           />
         );
     }

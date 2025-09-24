@@ -3,7 +3,7 @@ import Image from '../../../components/AppImage';
 import Icon from '../../../components/AppIcon';
 import Button from '../../../components/ui/Button';
 
-const DashboardOverview = ({ user, recentOrders, loyaltyPoints }) => {
+const DashboardOverview = ({ user, recentOrders, loyaltyPoints, wishlistCount }) => {
   const quickActions = [
     {
       title: 'Track Order',
@@ -64,7 +64,7 @@ const DashboardOverview = ({ user, recentOrders, loyaltyPoints }) => {
     },
     {
       label: 'Wishlist Items',
-      value: user?.wishlistCount || 0,
+      value: typeof wishlistCount === 'number' ? wishlistCount : (user?.wishlistCount || 0),
       icon: 'Heart',
       color: 'text-destructive'
     }
