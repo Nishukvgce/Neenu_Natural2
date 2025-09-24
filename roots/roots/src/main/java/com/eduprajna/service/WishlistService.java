@@ -7,12 +7,16 @@ import com.eduprajna.entity.WishlistItem;
 import com.eduprajna.repository.ProductRepository;
 import com.eduprajna.repository.WishlistItemRepository;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.List;
 import java.util.stream.Collectors;
 
 @Service
 public class WishlistService {
+    private static final Logger log = LoggerFactory.getLogger(WishlistService.class);
     private final WishlistItemRepository wishlistRepo;
     private final ProductRepository productRepo;
 
@@ -40,9 +44,20 @@ public class WishlistService {
         return toDTO(saved);
     }
 
+    @Transactional
     public void removeFromWishlist(User user, Long productId) {
-        Product product = productRepo.findById(productId).orElseThrow();
-        wishlistRepo.deleteByUserAndProduct(user, product);
+        // Delete by relation key without loading Product entity.
+        // This works even if the product row was removed from DB.
+        long deleted = 0L;
+        try {
+            deleted = wishlistRepo.deleteByUserAndProduct_Id(user, productId);
+            if (deleted == 0) {
+                // Fallback to legacy approach if derived delete didn't match (e.g., older Spring Data behavior)
+                productRepo.findById(productId).ifPresent(product -> wishlistRepo.deleteByUserAndProduct(user, product));
+            }
+        } finally {
+            log.info("Wishlist delete for user={} productId={} deletedRows={}", user.getId(), productId, deleted);
+        }
     }
 
     public long count(User user) {

@@ -162,6 +162,7 @@ const UserAccountDashboard = () => {
   const toUiWishlist = (apiItems = []) => {
     return (apiItems || []).map(item => ({
       id: item.productId || item.id,
+      productId: item.productId || item.id, // ensure productId is available for remove API
       name: item.productName || item.name,
       price: item.productPrice || item.price || 0,
       originalPrice: item.originalPrice || item.productPrice || item.price || 0,

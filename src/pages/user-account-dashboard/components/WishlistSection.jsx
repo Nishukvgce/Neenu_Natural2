@@ -6,6 +6,7 @@ import Image from '../../../components/AppImage';
 
 const WishlistSection = ({ wishlistItems, onRemoveFromWishlist, onAddToCart }) => {
   const [sortBy, setSortBy] = useState('recent');
+  const [removingIds, setRemovingIds] = useState(new Set());
 
   const sortOptions = [
     { value: 'recent', label: 'Recently Added' },
@@ -114,11 +115,31 @@ const WishlistSection = ({ wishlistItems, onRemoveFromWishlist, onAddToCart }) =
 
                 {/* Remove from Wishlist */}
                 <button
-                  onClick={() => onRemoveFromWishlist(item?.id)}
-                  className="absolute top-2 right-2 w-8 h-8 bg-background/80 backdrop-blur-sm rounded-full flex items-center justify-center hover:bg-background transition-colors duration-200"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    e.preventDefault();
+                    if (removingIds.has(item?.id)) return;
+                    setRemovingIds(prev => new Set(prev).add(item?.id));
+                    Promise.resolve(onRemoveFromWishlist(item?.productId || item?.id))
+                      .catch(() => {})
+                      .finally(() => {
+                        setRemovingIds(prev => {
+                          const next = new Set(prev);
+                          next.delete(item?.id);
+                          return next;
+                        });
+                      });
+                  }}
+                  disabled={removingIds.has(item?.id)}
+                  className={`absolute top-2 right-2 w-8 h-8 backdrop-blur-sm rounded-full flex items-center justify-center transition-colors duration-200 ${removingIds.has(item?.id) ? 'bg-muted cursor-not-allowed' : 'bg-background/80 hover:bg-background'}`}
                   aria-label="Remove from wishlist"
+                  title="Remove"
                 >
-                  <Icon name="X" size={16} className="text-foreground" />
+                  {removingIds.has(item?.id) ? (
+                    <span className="animate-spin inline-block w-4 h-4 border-2 border-foreground border-t-transparent rounded-full"></span>
+                  ) : (
+                    <Icon name="X" size={16} className="text-foreground" />
+                  )}
                 </button>
 
                 {/* Stock Status */}
