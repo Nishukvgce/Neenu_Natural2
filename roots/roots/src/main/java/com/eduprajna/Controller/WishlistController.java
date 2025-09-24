@@ -47,6 +47,22 @@ public class WishlistController {
         }
     }
 
+    @GetMapping("/count")
+    public ResponseEntity<?> getWishlistCount(@RequestParam("email") String email) {
+        try {
+            logger.debug("Counting wishlist for user: {}", email);
+            User user = requireUser(email);
+            long count = wishlistService.count(user);
+            return ResponseEntity.ok(count);
+        } catch (RuntimeException e) {
+            logger.error("Error counting wishlist for user: {}", email, e);
+            return ResponseEntity.status(404).body("User not found");
+        } catch (Exception e) {
+            logger.error("Unexpected error counting wishlist for user: {}", email, e);
+            return ResponseEntity.status(500).body("Internal server error");
+        }
+    }
+
     @PostMapping
     public ResponseEntity<?> addToWishlist(@RequestParam("email") String email, @RequestBody Map<String, Object> body) {
         try {

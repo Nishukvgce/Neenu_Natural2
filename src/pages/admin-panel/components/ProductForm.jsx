@@ -1,11 +1,5 @@
-  // Handle image file selection
-  const handleImageUpload = (e) => {
-    const file = e.target.files[0];
-    if (file) {
-      setImageFile(file);
-    }
-  };
-import React, { useState, useEffect } from 'react';
+  import React, { useState, useEffect } from 'react';
+import apiClient from '../../../services/api';
 import { X } from 'lucide-react';
 import dataService from '../../../services/dataService';
 import { Button } from '../../../components/ui/Button';
@@ -27,8 +21,18 @@ const ProductForm = ({ product, onSave, onCancel }) => {
   });
   const [categories, setCategories] = useState([]);
   const [imageFile, setImageFile] = useState(null);
+  const [existingImageUrl, setExistingImageUrl] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+
+  const resolveImageUrl = (candidate) => {
+    if (!candidate) return '';
+    if (candidate.startsWith('http://') || candidate.startsWith('https://') || candidate.startsWith('data:')) {
+      return candidate;
+    }
+    const base = apiClient?.defaults?.baseURL || '';
+    return candidate.startsWith('/') ? `${base}${candidate}` : `${base}/${candidate}`;
+  };
 
   useEffect(() => {
     if (product && typeof product === 'object') {
@@ -45,6 +49,9 @@ const ProductForm = ({ product, onSave, onCancel }) => {
         benefits: Array.isArray(product.benefits) ? product.benefits.join(', ') : '',
         inStock: typeof product.inStock === 'boolean' ? product.inStock : true
       });
+      // Keep the original image URL for preview/preserve during update
+      const original = product.imageUrl || product.image || product.thumbnailUrl;
+      setExistingImageUrl(resolveImageUrl(original || ''));
     } else {
       setFormData({
         name: '',
@@ -59,15 +66,18 @@ const ProductForm = ({ product, onSave, onCancel }) => {
         benefits: '',
         inStock: true
       });
+      setExistingImageUrl('');
     }
   }, [product]);
-  //Please fill all required fields and select an image.
-    const handleImageUpload = (e) => {
+
+  // Handle image file selection
+  const handleImageUpload = (e) => {
     const file = e.target.files[0];
     if (file) {
       setImageFile(file);
     }
   };
+
   useEffect(() => {
     // Fetch categories from backend
     async function fetchCategories() {
@@ -117,7 +127,14 @@ const ProductForm = ({ product, onSave, onCancel }) => {
       };
 
       if (product) {
-        // Edit mode: update product (no image update for now)
+        // Edit mode: update product
+        // Preserve existing imageUrl if no new image is uploaded
+        if (!imageFile) {
+          // Try to keep the original backend-relative path if present
+          if (product?.imageUrl) {
+            productData.imageUrl = product.imageUrl;
+          }
+        }
         await dataService.updateProduct(product.id, productData);
       } else {
         // Add mode: use FormData for image upload
@@ -133,6 +150,7 @@ const ProductForm = ({ product, onSave, onCancel }) => {
       setLoading(false);
     }
   };
+
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
       <div className="bg-card border border-border rounded-lg w-full max-w-2xl max-h-[90vh] overflow-y-auto">
@@ -235,25 +253,25 @@ const ProductForm = ({ product, onSave, onCancel }) => {
             </div>
           </div>
 
-           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-             <div>
-               <label className="block text-sm font-medium text-foreground mb-1">
-                 Category *
-               </label>
-               <select
-                 name="category"
-                 value={formData.category}
-                 onChange={handleChange}
-                 required
-                 className="w-full h-10 px-3 rounded-md border border-border bg-background text-foreground"
-                 disabled={categories.length === 0}
-               >
-                 <option value="">{categories.length === 0 ? 'Loading categories...' : 'Select Category'}</option>
-                 {categories.map((category) => (
-                   <option key={category.id} value={category.id}>{category.name}</option>
-                 ))}
-               </select>
-             </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-foreground mb-1">
+                Category *
+              </label>
+              <select
+                name="category"
+                value={formData.category}
+                onChange={handleChange}
+                required
+                className="w-full h-10 px-3 rounded-md border border-border bg-background text-foreground"
+                disabled={categories.length === 0}
+              >
+                <option value="">{categories.length === 0 ? 'Loading categories...' : 'Select Category'}</option>
+                {categories.map((category) => (
+                  <option key={category.id} value={category.id}>{category.name}</option>
+                ))}
+              </select>
+            </div>
 
             <div>
               <label className="block text-sm font-medium text-foreground mb-1">
@@ -279,7 +297,8 @@ const ProductForm = ({ product, onSave, onCancel }) => {
                 onChange={handleImageUpload}
                 className="w-full px-3 py-2 border border-border rounded-md bg-background text-foreground file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:bg-primary file:text-primary-foreground hover:file:bg-primary/90"
               />
-              {imageFile && (
+              {/* Show selected image preview; else show existing image when editing */}
+              {imageFile ? (
                 <div className="mt-2">
                   <img
                     src={URL.createObjectURL(imageFile)}
@@ -287,6 +306,17 @@ const ProductForm = ({ product, onSave, onCancel }) => {
                     className="w-20 h-20 object-cover rounded-md border"
                   />
                 </div>
+              ) : (
+                product && existingImageUrl && (
+                  <div className="mt-2">
+                    <img
+                      src={existingImageUrl}
+                      alt="Current product image"
+                      className="w-20 h-20 object-cover rounded-md border"
+                      onError={(e) => { e.currentTarget.src = '/assets/images/no_image.png'; }}
+                    />
+                  </div>
+                )
               )}
             </div>
           </div>

@@ -45,6 +45,10 @@ public class WishlistService {
         wishlistRepo.deleteByUserAndProduct(user, product);
     }
 
+    public long count(User user) {
+        return wishlistRepo.countByUser(user);
+    }
+
     private WishlistItemDTO toDTO(WishlistItem item) {
         Product p = item.getProduct();
         WishlistItemDTO dto = new WishlistItemDTO();

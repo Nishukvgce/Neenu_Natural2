@@ -5,6 +5,7 @@ import Button from '../../../components/ui/Button';
 import Image from '../../../components/AppImage';
 import { downloadInvoice, printInvoice } from '../../../utils/invoiceGenerator';
 import orderApi from '../../../services/orderApi';
+import apiClient from '../../../services/api';
 
 const OrderHistory = () => {
   const { user } = useAuth();
@@ -23,6 +24,23 @@ const OrderHistory = () => {
     { value: 'cancelled', label: 'Cancelled' }
   ];
 
+  // Resolve product image URL to absolute path served by backend
+  const resolveImageUrl = (candidate) => {
+    if (!candidate || typeof candidate !== 'string') return '';
+    if (/^(https?:)?\/\//i.test(candidate) || candidate.startsWith('data:')) return candidate;
+    // Extract filename if OS path or contains backslashes
+    if (/^[a-zA-Z]:\\/.test(candidate) || candidate.startsWith('\\\\') || candidate.startsWith('/') || candidate.includes('\\')) {
+      const parts = candidate.split(/\\|\//);
+      candidate = parts[parts.length - 1];
+    }
+    // Map bare filename to API image route
+    if (/^[^/]+\.[a-zA-Z0-9]+$/.test(candidate)) {
+      candidate = `/admin/products/images/${candidate}`;
+    }
+    const base = apiClient?.defaults?.baseURL || '';
+    return candidate.startsWith('/') ? `${base}${candidate}` : `${base}/${candidate}`;
+  };
+
   // Fetch user orders from API
   useEffect(() => {
     const fetchOrders = async () => {
@@ -33,7 +51,15 @@ const OrderHistory = () => {
       
       try {
         const userOrders = await orderApi.getUserOrders(user.email);
-        setOrders(userOrders || []);
+        // Normalize each order item's image
+        const normalized = (userOrders || []).map((order) => ({
+          ...order,
+          items: (order?.items || []).map((item) => {
+            const resolved = resolveImageUrl(item?.productImage || item?.image || item?.imageUrl || '');
+            return { ...item, productImage: resolved };
+          }),
+        }));
+        setOrders(normalized);
       } catch (err) {
         console.error('Error fetching orders:', err);
         setError(err.message || 'Failed to load orders');

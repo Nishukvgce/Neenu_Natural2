@@ -6,6 +6,7 @@ import dataService from '../../services/dataService';
 import userApi from '../../services/userApi';
 import orderApi from '../../services/orderApi';
 import wishlistApi from '../../services/wishlistApi';
+import apiClient from '../../services/api';
 import Header from '../../components/ui/Header';
 import DashboardSidebar from './components/DashboardSidebar';
 import DashboardOverview from './components/DashboardOverview';
@@ -25,6 +26,23 @@ const UserAccountDashboard = () => {
 
   // Real orders data - moved before any useEffect that uses it
   const [orders, setOrders] = useState([]);
+
+  // Convert relative or bare filenames to absolute URLs under API base for order item images
+  const resolveImageUrl = (candidate) => {
+    if (!candidate || typeof candidate !== 'string') return '';
+    if (/^(https?:)?\/\//i.test(candidate) || candidate.startsWith('data:')) return candidate;
+    // Extract filename if absolute path or contains backslashes
+    if (/^[a-zA-Z]:\\/.test(candidate) || candidate.startsWith('\\\\') || candidate.startsWith('/') || candidate.includes('\\')) {
+      const parts = candidate.split(/\\|\//);
+      candidate = parts[parts.length - 1];
+    }
+    // Map bare filename to API image route
+    if (/^[^/]+\.[a-zA-Z0-9]+$/.test(candidate)) {
+      candidate = `/admin/products/images/${candidate}`;
+    }
+    const base = apiClient?.defaults?.baseURL || '';
+    return candidate.startsWith('/') ? `${base}${candidate}` : `${base}/${candidate}`;
+  };
 
   // Redirect to login if user is not authenticated
   useEffect(() => {
@@ -96,7 +114,17 @@ const UserAccountDashboard = () => {
         if (user?.email) {
           const userOrders = await orderApi.getUserOrders(user.email);
           console.log('Loaded user orders:', userOrders);
-          setOrders(userOrders || []);
+          const normalized = (userOrders || []).map((order) => ({
+            ...order,
+            items: (order?.items || []).map((item) => {
+              const resolvedImg = resolveImageUrl(item?.image || item?.productImage || item?.imageUrl || '');
+              return {
+                ...item,
+                image: resolvedImg,
+              };
+            }),
+          }));
+          setOrders(normalized);
         }
       } catch (error) {
         console.error('Error loading user orders:', error);
@@ -129,12 +157,31 @@ const UserAccountDashboard = () => {
   const [wishlistItems, setWishlistItems] = useState([]);
   const [wishlistLoading, setWishlistLoading] = useState(false);
   const [wishlistError, setWishlistError] = useState(null);
+  const [wishlistCount, setWishlistCount] = useState(0);
+
+  const toUiWishlist = (apiItems = []) => {
+    return (apiItems || []).map(item => ({
+      id: item.productId || item.id,
+      name: item.productName || item.name,
+      price: item.productPrice || item.price || 0,
+      originalPrice: item.originalPrice || item.productPrice || item.price || 0,
+      image: resolveImageUrl(item.productImage || item.image || item.imageUrl || ''),
+      variants: item.variants || ["Default"],
+      selectedVariant: item.selectedVariant || "Default",
+      inStock: item.inStock !== false,
+      rating: item.rating || 4.5,
+      reviewCount: item.reviewCount || 0,
+      badges: item.badges || [],
+      addedDate: item.createdAt || item.addedDate || new Date().toISOString()
+    }));
+  };
 
   // Fetch wishlist from backend API
   useEffect(() => {
     const fetchWishlist = async () => {
       if (!authUser?.email) {
         setWishlistItems([]);
+        setWishlistCount(0);
         return;
       }
 
@@ -145,22 +192,14 @@ const UserAccountDashboard = () => {
         console.log('Fetching wishlist for user:', authUser.email);
         
         const wishlistData = await wishlistApi.getAll(authUser.email);
-        // Transform API data to match frontend expectations
-        const transformedWishlist = (wishlistData || []).map(item => ({
-          id: item.productId || item.id,
-          name: item.productName || item.name,
-          price: item.productPrice || item.price || 0,
-          originalPrice: item.originalPrice || item.productPrice || item.price || 0,
-          image: item.productImage || item.image || "https://images.unsplash.com/photo-1586201375761-83865001e31c?w=400&h=400&fit=crop",
-          variants: item.variants || ["Default"],
-          selectedVariant: item.selectedVariant || "Default",
-          inStock: item.inStock !== false,
-          rating: item.rating || 4.5,
-          reviewCount: item.reviewCount || 0,
-          badges: item.badges || [],
-          addedDate: item.createdAt || item.addedDate || new Date().toISOString()
-        }));
+        const transformedWishlist = toUiWishlist(wishlistData);
         setWishlistItems(transformedWishlist);
+        try {
+          const count = await wishlistApi.getCount(authUser.email);
+          setWishlistCount(typeof count === 'number' ? count : transformedWishlist.length);
+        } catch (e) {
+          setWishlistCount(transformedWishlist.length);
+        }
       } catch (error) {
         console.error('Error fetching wishlist:', error);
         setWishlistError(error.message);
@@ -173,13 +212,16 @@ const UserAccountDashboard = () => {
             if (Array.isArray(parsedWishlist)) {
               setWishlistItems(parsedWishlist);
               console.log('Using localStorage wishlist as fallback');
+              setWishlistCount(parsedWishlist.length);
             }
           } else {
             setWishlistItems([]);
+            setWishlistCount(0);
           }
         } catch (localError) {
           console.error('Error loading localStorage wishlist:', localError);
           setWishlistItems([]);
+          setWishlistCount(0);
         }
       } finally {
         setWishlistLoading(false);
@@ -189,6 +231,20 @@ const UserAccountDashboard = () => {
     fetchWishlist();
   }, [authUser?.email]);
 
+  // Refresh wishlist count when only count is needed (e.g., external updates)
+  useEffect(() => {
+    const fetchCount = async () => {
+      if (!authUser?.email) return;
+      try {
+        const count = await wishlistApi.getCount(authUser.email);
+        if (typeof count === 'number') setWishlistCount(count);
+      } catch (e) {
+        // ignore
+      }
+    };
+    fetchCount();
+  }, [authUser?.email]);
+
   // Handle remove from wishlist
   const handleRemoveFromWishlist = async (productId) => {
     if (!authUser?.email) return;
@@ -196,8 +252,17 @@ const UserAccountDashboard = () => {
     try {
       console.log('Removing product from wishlist:', productId);
       await wishlistApi.remove(authUser.email, { productId });
-      // Remove from local state
-      setWishlistItems(prev => prev.filter(item => item.id !== productId));
+      // Hard re-fetch from DB to stay in sync with wishlist_items
+      try {
+        const fresh = await wishlistApi.getAll(authUser.email);
+        setWishlistItems(toUiWishlist(fresh));
+        const count = await wishlistApi.getCount(authUser.email);
+        setWishlistCount(typeof count === 'number' ? count : (fresh?.length || 0));
+      } catch (refreshErr) {
+        // Fallback to optimistic local update if refresh fails
+        setWishlistItems(prev => prev.filter(item => item.id !== productId));
+        setWishlistCount(prev => Math.max(0, (prev || 0) - 1));
+      }
       console.log('Successfully removed from wishlist');
       
       // Show success notification
@@ -217,6 +282,7 @@ const UserAccountDashboard = () => {
           const updatedWishlist = parsedWishlist.filter(item => item.id !== productId);
           localStorage.setItem('neenu_wishlist', JSON.stringify(updatedWishlist));
           setWishlistItems(updatedWishlist);
+          setWishlistCount(updatedWishlist.length);
         }
       } catch (localError) {
         console.error('Error updating localStorage wishlist:', localError);
@@ -404,6 +470,7 @@ const UserAccountDashboard = () => {
                   user={user}
                   onSectionChange={handleSectionChange}
                   activeSection={activeSection}
+                  wishlistCount={wishlistCount}
                 />
               </div>
             )}
@@ -415,6 +482,7 @@ const UserAccountDashboard = () => {
               user={user}
               onSectionChange={handleSectionChange}
               activeSection={activeSection}
+              wishlistCount={wishlistCount}
             />
           </div>
 

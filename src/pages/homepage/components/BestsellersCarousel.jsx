@@ -5,12 +5,38 @@ import Icon from '../../../components/AppIcon';
 import Button from '../../../components/ui/Button';
 import productApi from '../../../services/productApi';
 import dataService from '../../../services/dataService';
+import apiClient from '../../../services/api';
 
 const BestsellersCarousel = ({ onAddToCart }) => {
   const [currentSlide, setCurrentSlide] = useState(0);
   const [bestsellers, setBestsellers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+
+  // Resolve image URL from backend (handles relative paths like "/admin/products/images/xxx.jpg")
+  const resolveImageUrl = (input) => {
+    let candidate = typeof input === 'string'
+      ? input
+      : (input?.imageUrl || input?.image || input?.thumbnailUrl);
+    if (!candidate) return '/assets/images/no_image.png';
+    if (typeof candidate !== 'string') return '/assets/images/no_image.png';
+    // Absolute URLs or data URIs
+    if (/^(https?:)?\/\//i.test(candidate) || candidate.startsWith('data:')) return candidate;
+
+    // If it's an absolute OS path (Windows/Unix) or contains backslashes, extract filename
+    if (/^[a-zA-Z]:\\/.test(candidate) || candidate.startsWith('\\\\') || candidate.startsWith('/') || candidate.includes('\\')) {
+      const parts = candidate.split(/\\|\//);
+      candidate = parts[parts.length - 1];
+    }
+
+    // If it's a bare filename, map to API image route
+    if (/^[^/]+\.[a-zA-Z0-9]+$/.test(candidate)) {
+      candidate = `/admin/products/images/${candidate}`;
+    }
+
+    const base = apiClient?.defaults?.baseURL || '';
+    return candidate.startsWith('/') ? `${base}${candidate}` : `${base}/${candidate}`;
+  };
 
   useEffect(() => {
     const loadBestsellers = async () => {
@@ -58,7 +84,7 @@ const BestsellersCarousel = ({ onAddToCart }) => {
           originalPrice: product.originalPrice || product.price || 0,
           salePrice: product.salePrice || product.price || 0,
           price: product.price || product.salePrice || 0,
-          image: product.imageUrl || product.image || product.thumbnailUrl || "https://images.unsplash.com/photo-1586201375761-83865001e31c?w=400&h=400&fit=crop",
+          image: resolveImageUrl(product),
           rating: product.rating || 4.5,
           reviewCount: product.reviewCount || product.reviews || Math.floor(Math.random() * 200) + 50,
           badges: product.badges || product.tags || ["Quality Product"],

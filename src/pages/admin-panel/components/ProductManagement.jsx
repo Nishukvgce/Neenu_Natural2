@@ -17,15 +17,25 @@ const ProductManagement = () => {
 
   // Helper: resolve image URL coming from backend (relative like "/admin/products/images/xxx.jpg")
   const resolveImageUrl = (p) => {
-    const candidate = p?.imageUrl || p?.image || p?.image_path || p?.thumbnailUrl;
+    let candidate = p?.imageUrl || p?.image || p?.image_path || p?.thumbnailUrl;
     if (!candidate) return '/assets/images/no_image.png';
-    if (candidate.startsWith('http://') || candidate.startsWith('https://') || candidate.startsWith('data:')) {
-      return candidate;
+    if (typeof candidate !== 'string') return '/assets/images/no_image.png';
+    // Absolute URLs or data URIs
+    if (/^(https?:)?\/\//i.test(candidate) || candidate.startsWith('data:')) return candidate;
+
+    // If it's an absolute OS path (Windows or Unix), extract filename
+    if (/^[a-zA-Z]:\\/.test(candidate) || candidate.startsWith('\\\\') || candidate.startsWith('/') || candidate.includes('\\')) {
+      const parts = candidate.split(/\\|\//);
+      candidate = parts[parts.length - 1];
     }
+
+    // If it's a bare filename (e.g., "photo.jpg"), map to API image route
+    if (/^[^/]+\.[a-zA-Z0-9]+$/.test(candidate)) {
+      candidate = `/admin/products/images/${candidate}`;
+    }
+
     const base = apiClient?.defaults?.baseURL || '';
-    // Ensure single slash between base and path
-    if (candidate.startsWith('/')) return `${base}${candidate}`;
-    return `${base}/${candidate}`;
+    return candidate.startsWith('/') ? `${base}${candidate}` : `${base}/${candidate}`;
   };
 
   useEffect(() => {
@@ -62,6 +72,7 @@ const ProductManagement = () => {
         originalPrice: p?.originalPrice ?? p?.mrp ?? p?.price ?? 0,
         rating: p?.rating ?? p?.ratingValue ?? 0,
         image: resolveImageUrl(p),
+        imageUrl: p?.imageUrl || null, // keep original relative URL for edit form
         description: p?.description || 'No description available',
         inStock: p?.inStock !== false, // Default to true if not specified
         weight: p?.weight || 'N/A',

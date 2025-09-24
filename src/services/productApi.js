@@ -31,7 +31,7 @@ const productApi = {
       }
       
       console.log('ProductAPI: Fetching product by ID:', productId);
-      const res = await apiClient.get(`/products/${productId}`);
+      const res = await apiClient.get(`/admin/products/${productId}`);
       console.log('ProductAPI: Successfully fetched product:', res.data?.name || res.data?.id);
       return res.data;
     } catch (error) {

@@ -133,14 +133,6 @@ const Header = ({ isLoggedIn = false, onSearch = () => {} }) => {
                 </Link>
               )}
 
-              {/* Wishlist */}
-              <button className="relative text-foreground hover:text-primary transition-colors duration-200">
-                <Icon name="Heart" size={20} />
-                <span className="absolute -top-1 -right-1 bg-primary text-primary-foreground text-xs font-bold rounded-full w-4 h-4 flex items-center justify-center text-[10px]">
-                  0
-                </span>
-              </button>
-
               {/* Cart */}
               <button
                 onClick={() => setIsCartDrawerOpen(true)}

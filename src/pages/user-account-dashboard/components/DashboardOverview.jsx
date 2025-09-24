@@ -1,4 +1,5 @@
 import React from 'react';
+import Image from '../../../components/AppImage';
 import Icon from '../../../components/AppIcon';
 import Button from '../../../components/ui/Button';
 
@@ -138,7 +139,7 @@ const DashboardOverview = ({ user, recentOrders, loyaltyPoints }) => {
               <div className="flex items-center justify-between mb-2">
                 <div className="flex items-center space-x-3">
                   <div className="w-10 h-10 bg-muted rounded-lg overflow-hidden">
-                    <img
+                    <Image
                       src={order?.items?.[0]?.image}
                       alt={order?.items?.[0]?.name}
                       className="w-full h-full object-cover"

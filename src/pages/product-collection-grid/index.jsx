@@ -11,6 +11,7 @@ import QuickViewModal from './components/QuickViewModal';
 import Button from '../../components/ui/Button';
 import dataService from '../../services/dataService';
 import productApi from '../../services/productApi';
+import apiClient from '../../services/api';
 
 const ProductCollectionGrid = () => {
   const location = useLocation();
@@ -38,6 +39,17 @@ const ProductCollectionGrid = () => {
     categories: [],
     brands: []
   });
+
+  // Resolve relative image URLs returned by backend to absolute URLs using API base
+  const resolveImageUrl = (p) => {
+    const candidate = p?.imageUrl || p?.image || p?.image_path || p?.thumbnailUrl;
+    if (!candidate) return '/assets/images/no_image.png';
+    if (candidate.startsWith('http://') || candidate.startsWith('https://') || candidate.startsWith('data:')) {
+      return candidate;
+    }
+    const base = apiClient?.defaults?.baseURL || '';
+    return candidate.startsWith('/') ? `${base}${candidate}` : `${base}/${candidate}`;
+  };
 
   // Initialize products and apply URL filters
   useEffect(() => {
@@ -72,7 +84,7 @@ const ProductCollectionGrid = () => {
           originalPrice: p?.originalPrice ?? p?.mrp ?? p?.price ?? 0,
           rating: p?.rating ?? p?.ratingValue ?? 0,
           bestseller: Boolean(p?.bestseller),
-          image: p?.image || p?.imageUrl || p?.image_path || p?.thumbnailUrl,
+          image: resolveImageUrl(p),
           description: p?.description || '',
           // Include stock fields when present; treat missing as unlimited
           stockQuantity: p?.stockQuantity ?? null,

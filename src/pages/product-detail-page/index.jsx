@@ -11,6 +11,7 @@ import ProductReviews from './components/ProductReviews';
 import RelatedProducts from './components/RelatedProducts';
 import productApi from '../../services/productApi';
 import dataService from '../../services/dataService';
+import apiClient from '../../services/api';
 
 const ProductDetailPage = () => {
   const [searchParams] = useSearchParams();
@@ -22,6 +23,24 @@ const ProductDetailPage = () => {
   const [product, setProduct] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [relatedProducts, setRelatedProducts] = useState([]);
+
+  // Convert relative or bare filenames to absolute URLs under API base
+  const resolveImageUrl = (candidate) => {
+    if (!candidate || typeof candidate !== 'string') return '';
+    if (/^(https?:)?\/\//i.test(candidate) || candidate.startsWith('data:')) return candidate;
+    // Extract filename if absolute path
+    if (/^[a-zA-Z]:\\/.test(candidate) || candidate.startsWith('\\\\') || candidate.startsWith('/') || candidate.includes('\\')) {
+      const parts = candidate.split(/\\|\//);
+      candidate = parts[parts.length - 1];
+    }
+    // Map bare filename to API route
+    if (/^[^/]+\.[a-zA-Z0-9]+$/.test(candidate)) {
+      candidate = `/admin/products/images/${candidate}`;
+    }
+    const base = apiClient?.defaults?.baseURL || '';
+    return candidate.startsWith('/') ? `${base}${candidate}` : `${base}/${candidate}`;
+  };
 
   // Load product data from database
   useEffect(() => {
@@ -76,22 +95,22 @@ const ProductDetailPage = () => {
           images: (() => {
             // Only use actual backend image data, no fallback images
             if (productData?.images && Array.isArray(productData.images) && productData.images.length > 0) {
-              return productData.images;
+              return productData.images.map(resolveImageUrl).filter(Boolean);
             }
             if (productData?.gallery && Array.isArray(productData.gallery) && productData.gallery.length > 0) {
-              return productData.gallery;
+              return productData.gallery.map(resolveImageUrl).filter(Boolean);
             }
             if (productData?.imageUrl && productData.imageUrl.trim() !== '') {
-              return [productData.imageUrl];
+              return [resolveImageUrl(productData.imageUrl)].filter(Boolean);
             }
             if (productData?.image && productData.image.trim() !== '') {
-              return [productData.image];
+              return [resolveImageUrl(productData.image)].filter(Boolean);
             }
             if (productData?.image_path && productData.image_path.trim() !== '') {
-              return [productData.image_path];
+              return [resolveImageUrl(productData.image_path)].filter(Boolean);
             }
             if (productData?.thumbnailUrl && productData.thumbnailUrl.trim() !== '') {
-              return [productData.thumbnailUrl];
+              return [resolveImageUrl(productData.thumbnailUrl)].filter(Boolean);
             }
             // Return empty array if no actual image data found
             return [];
@@ -120,6 +139,37 @@ const ProductDetailPage = () => {
         };
 
         setProduct(normalizedProduct);
+
+        // Load related products (same category, excluding current)
+        try {
+          const all = await productApi.getAll();
+          const items = Array.isArray(all) ? all : [];
+          const sameCategory = items
+            .filter(p => (p?.category || p?.categoryId) === normalizedProduct.category && p?.id !== normalizedProduct.id)
+            .slice(0, 8);
+
+          // Normalize for RelatedProducts card structure
+          const normalizedRelated = sameCategory.map(p => ({
+            id: p?.id,
+            name: p?.name || p?.title,
+            image: resolveImageUrl(p?.image || p?.imageUrl || p?.thumbnailUrl),
+            rating: p?.rating || 4.5,
+            reviewCount: p?.reviewCount || 0,
+            badges: p?.badges || [],
+            variants: [
+              {
+                id: 'default',
+                weight: p?.weight || 'Default',
+                price: parseFloat(p?.price ?? p?.salePrice ?? 0) || 0,
+                originalPrice: parseFloat(p?.originalPrice ?? p?.price ?? p?.salePrice ?? 0) || 0
+              }
+            ]
+          }));
+          setRelatedProducts(normalizedRelated);
+        } catch (e) {
+          // Non-fatal if related fail; keep empty
+          setRelatedProducts([]);
+        }
       } catch (err) {
         console.error('Error loading product:', err);
         setError(err.message);
@@ -313,7 +363,7 @@ const ProductDetailPage = () => {
         {/* Related Products */}
         <div className="mb-12">
           <RelatedProducts
-            products={[]}
+            products={relatedProducts}
             onAddToCart={handleAddToCart}
           />
         </div>

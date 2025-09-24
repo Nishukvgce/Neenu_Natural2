@@ -43,6 +43,13 @@ public class ProductController {
         return ResponseEntity.ok(productService.getAll());
     }
 
+    @GetMapping("/{id}")
+    public ResponseEntity<Product> getById(@PathVariable Long id) {
+        Product p = productService.getById(id);
+        if (p == null) return ResponseEntity.notFound().build();
+        return ResponseEntity.ok(p);
+    }
+
     @PostMapping(consumes = {"multipart/form-data"})
     public ResponseEntity<Product> create(
             @RequestPart("product") Product p,
@@ -81,7 +88,7 @@ public class ProductController {
     }
 
     // Serve uploaded images via API so frontend can display them
-    @GetMapping("/images/{filename}")
+    @GetMapping("/images/{filename:.+}")
     public ResponseEntity<Resource> getImage(@PathVariable String filename) throws IOException {
         Resource resource = storageService.loadAsResource(filename);
         MediaType contentType = storageService.probeMediaType(filename);
