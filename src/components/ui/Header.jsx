@@ -7,6 +7,7 @@ import AnnouncementBar from './AnnouncementBar';
 import MegaMenu from './MegaMenu';
 import CartDrawer from './CartDrawer';
 import { useCart } from '../../contexts/CartContext.jsx';
+
 const Header = ({ isLoggedIn = false, onSearch = () => {} }) => {
   const { cartItems, getCartItemCount, updateQuantity, removeFromCart } = useCart();
   const navigate = useNavigate();
@@ -16,6 +17,9 @@ const Header = ({ isLoggedIn = false, onSearch = () => {} }) => {
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [showAnnouncementBar, setShowAnnouncementBar] = useState(true);
+  const [suggestions, setSuggestions] = useState([]);
+  const [suggestionsOpen, setSuggestionsOpen] = useState(false);
+  const [searchLoading, setSearchLoading] = useState(false);
 
   const location = useLocation();
 
@@ -25,11 +29,53 @@ const Header = ({ isLoggedIn = false, onSearch = () => {} }) => {
     setIsSearchOpen(false);
   }, [location]);
 
+  useEffect(() => {
+    const q = searchQuery.trim();
+    if (q.length < 2) {
+      setSuggestions([]);
+      setSuggestionsOpen(false);
+      return;
+    }
+    let ignore = false;
+    setSearchLoading(true);
+    const timer = setTimeout(async () => {
+      try {
+        const list = await fetch('/api/products');
+        let items = await list.json();
+        const qLower = q.toLowerCase();
+        items = items.filter(p => String(p?.name || p?.title || '').toLowerCase().includes(qLower));
+        const limited = items.slice(0, 8).map(p => ({
+          id: p?.id,
+          name: p?.name || p?.title,
+          price: p?.price ?? p?.salePrice ?? 0,
+          image: p?.imageUrl || p?.image || p?.thumbnailUrl || p?.image_path
+        }));
+        if (!ignore) {
+          setSuggestions(limited);
+          setSuggestionsOpen(true);
+        }
+      } catch (e) {
+        if (!ignore) {
+          setSuggestions([]);
+          setSuggestionsOpen(false);
+        }
+      } finally {
+        if (!ignore) setSearchLoading(false);
+      }
+    }, 250);
+    return () => {
+      ignore = true;
+      clearTimeout(timer);
+    };
+  }, [searchQuery]);
+
   const handleSearch = (e) => {
     e?.preventDefault();
-    if (searchQuery?.trim() && onSearch) {
-      onSearch(searchQuery);
-    }
+    const params = new URLSearchParams();
+    if (searchQuery?.trim()) params.set('search', searchQuery.trim());
+    const target = `/product-collection-grid${params.toString() ? `?${params.toString()}` : ''}`;
+    navigate(target);
+    if (searchQuery?.trim() && onSearch) onSearch(searchQuery.trim());
   };
 
   const navigationItems = [
@@ -74,44 +120,57 @@ const Header = ({ isLoggedIn = false, onSearch = () => {} }) => {
             </Link>
 
             {/* Search Bar */}
-            <div className="flex-1 max-w-2xl mx-8">
-              <form onSubmit={handleSearch} className="relative">
-                <select
-                  className="absolute left-3 top-1/2 transform -translate-y-1/2 bg-transparent border-none text-sm text-muted-foreground focus:outline-none"
-                  onChange={e => {
-                    const value = e.target.value;
-                    if (value) navigate(value);
-                  }}
-                  defaultValue=""
-                >
-                  <option value="">All Categories</option>
-                  <option value="/product-collection-grid?category=unpolished-pulses">Unpolished Pulses, Dals & Rice</option>
-                  <option value="/product-collection-grid?category=poha">Poha / Aval</option>
-                  <option value="/product-collection-grid?category=sugars-honey">Sugars & Honey</option>
-                  <option value="/product-collection-grid?category=haircare">Haircare Products</option>
-                  <option value="/product-collection-grid?category=skincare">Skincare Products</option>
-                  <option value="/product-collection-grid?category=millet">Millet Items</option>
-                  <option value="/product-collection-grid?category=powders">Powders</option>
-                  <option value="/product-collection-grid?category=fries">Fries</option>
-                  <option value="/product-collection-grid?category=herbal-handmade">Herbal Handmade</option>
-                  <option value="/product-collection-grid?category=soaps">Soaps</option>
-                  <option value="/product-collection-grid?category=snacks">Snacks</option>
-                  <option value="/product-collection-grid?category=herbal-powders">Herbal Powders</option>
-                </select>
-                <Input
-                  type="search"
-                  placeholder="Search for products"
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e?.target?.value)}
-                  className="pl-32 pr-12 py-3"
-                />
-                <button
-                  type="submit"
-                  className="absolute right-3 top-1/2 transform -translate-y-1/2 text-muted-foreground hover:text-primary transition-colors duration-200"
-                >
-                  <Icon name="Search" size={20} />
-                </button>
+            <div className="flex-1 max-w-2xl mx-8 relative">
+              <form onSubmit={handleSearch} className="w-full">
+                <div className="relative w-full rounded-lg border border-border bg-background overflow-hidden shadow-sm focus-within:ring-2 focus-within:ring-primary/40">
+                  <Input
+                    type="search"
+                    placeholder="Search for products"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e?.target?.value)}
+                    className="w-full border-0 focus:ring-0 pl-4 pr-12 py-3"
+                  />
+                  <button
+                    type="submit"
+                    className="absolute top-1/2 -translate-y-1/2 right-3 text-muted-foreground hover:text-primary transition-colors duration-200"
+                    aria-label="Search"
+                    title="Search"
+                  >
+                    {searchLoading ? (
+                      <span className="animate-spin inline-block w-4 h-4 border-2 border-current border-t-transparent rounded-full" />
+                    ) : (
+                      <Icon name="Search" size={20} />
+                    )}
+                  </button>
+                </div>
               </form>
+              {/* Suggestions Dropdown */}
+              {suggestionsOpen && suggestions.length > 0 && (
+                <div className="absolute left-0 right-0 mt-2 bg-card border border-border rounded-md shadow-warm z-50 overflow-hidden">
+                  {suggestions.map(item => (
+                    <button
+                      key={item.id}
+                      onClick={() => navigate(`/product-detail-page?id=${item.id}`)}
+                      className="w-full flex items-center gap-3 p-3 hover:bg-muted/40 text-left"
+                    >
+                      <img src={item.image || '/assets/images/no_image.png'} alt={item.name} className="w-10 h-10 object-cover rounded" />
+                      <div className="flex-1">
+                        <div className="text-sm text-foreground line-clamp-1">{item.name}</div>
+                        <div className="text-xs text-muted-foreground">₹{(item.price || 0).toFixed(2)}</div>
+                      </div>
+                      <Icon name="ChevronRight" size={16} className="text-muted-foreground" />
+                    </button>
+                  ))}
+                  <div className="border-t border-border">
+                    <button
+                      onClick={handleSearch}
+                      className="w-full text-left p-3 text-sm hover:bg-muted/40"
+                    >
+                      View all results
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Right Actions */}
@@ -154,15 +213,6 @@ const Header = ({ isLoggedIn = false, onSearch = () => {} }) => {
       <div className="bg-accent text-accent-foreground">
         <div className="container mx-auto px-4">
           <div className="flex items-center">
-            {/* Shop by Category Button */}
-            {/* <button
-              onClick={() => setIsMegaMenuOpen(!isMegaMenuOpen)}
-              className="flex items-center space-x-2 px-4 py-3 bg-accent-foreground/10 hover:bg-accent-foreground/20 transition-colors duration-200"
-            >
-              <Icon name="Menu" size={16} />
-              <span className="font-body font-medium">SHOP BY CATEGORY</span>
-            </button> */}
-
             {/* Navigation Items */}
             <nav className="hidden lg:flex items-center ml-8 space-x-6">
               {navigationItems?.map((item, index) => (

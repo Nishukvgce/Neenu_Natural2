@@ -51,7 +51,7 @@ const ProductCollectionGrid = () => {
     return candidate.startsWith('/') ? `${base}${candidate}` : `${base}/${candidate}`;
   };
 
-  // Initialize products and apply URL filters
+  // Initialize products and apply URL filters (category, search)
   useEffect(() => {
     const loadProducts = async () => {
       try {
@@ -92,36 +92,35 @@ const ProductCollectionGrid = () => {
           weight: p?.weight || 'N/A'
         }));
 
-        // Filter by category if specified in URL
-        const urlParams = new URLSearchParams(location.search);
-        const categoryParam = urlParams.get('category');
+        // Apply URL filters
+        const categoryParam = (searchParams.get('category') || '').toLowerCase();
+        const searchParamRaw = searchParams.get('search') || '';
+        const searchParam = searchParamRaw.toLowerCase();
 
-        let filteredProducts = normalizedProducts;
+        let working = normalizedProducts;
         if (categoryParam) {
-          filteredProducts = normalizedProducts.filter(product => 
-            product.category === categoryParam || product.subcategory === categoryParam
-          );
-          console.log(`Filtered products for category '${categoryParam}':`, filteredProducts.length);
+          working = working.filter(p => String(p?.category || '').toLowerCase() === categoryParam);
+        }
+        if (searchParam) {
+          // Prefer exact name match; if none, fallback to substring contains
+          const exact = working.filter(p => String(p?.name || '').toLowerCase() === searchParam);
+          working = exact.length > 0 ? exact : working.filter(p => String(p?.name || '').toLowerCase().includes(searchParam));
         }
 
-        setProducts(filteredProducts);
-        
-        // Apply URL filters for sorting
-        const filter = searchParams?.get('filter');
-        if (filter === 'new-arrivals') {
-          setCurrentSort('newest');
-        }
+        setProducts(normalizedProducts);
+        setFilteredProducts(working);
       } catch (error) {
         console.error('Error loading products:', error);
         // Set empty array as fallback
         setProducts([]);
+        setFilteredProducts([]);
       } finally {
         setLoading(false);
       }
     };
 
     loadProducts();
-  }, [searchParams, location.search]); // Depend on location.search for category filtering
+  }, [location.search]); // Depend on location.search for category filtering
 
   // Filter and sort products
   useEffect(() => {
